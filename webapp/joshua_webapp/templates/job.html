@@ -1,0 +1,46 @@
+<!-- templates/job.html -->
+
+{% extends "base.html" %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block content %}
+
+<h3>Currently Running Joshua Jobs</h3>
+
+<table class="sortable">
+    <tr>
+        <th class="ensemble">Ensemble</th>
+        <!-- <th>Username</th> -->
+        <th>Started</th>
+        <th>Ended</th>
+        <th>Fail</th>
+        <th>Pass</th>
+        <th>Duration</th>
+        <th>Max Runs</th>
+        <th>Priority</th>
+        <th>Action</th>
+    </tr>
+    {% for ensemble, properties in ensembles %}
+    <tr>
+        <td>{{ensemble[:30]}}...</td>
+        <!-- <td>{{ properties['username'] }}</td> -->
+        <td>{{ properties['started'] }}</td>
+        <td>{{ properties['ended'] }}</td>
+        <td>{{ properties['fail'] }}</td>
+        <td>{{ properties['pass'] }}</td>
+        <td>{{ properties['duration'] }}</td>
+        <td>{{ properties['max_runs'] }}</td>
+        <td>{{ properties['priority'] }}</td>
+        <td><button type="submit" onclick="window.location.href='{{ url_for('main.action') }}?action=stop&ensemble={{ensemble}}'">Stop</button>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<p>Click on column header to sort.</p>
+
+{% if current_user.is_authenticated %}
+<h3 class="title">{{ user.username }}, your jobs are:</h3>
+{% endif %}
+
+{% endblock %}

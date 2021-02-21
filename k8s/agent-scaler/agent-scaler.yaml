@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: agent-scaler
+  name: agent-scaler-deployment
+  namespace: joshua
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-scaler
+  template:
+    metadata:
+      labels:
+        app: agent-scaler
+      name: agent-scaler-app
+    spec:
+      serviceAccountName: joshua-sa
+      containers:
+        - name: agent-scaler-container
+          image: agent-scaler:latest
+          imagePullPolicy: Never
+          env:
+          - name: MAX_JOBS
+            value: "5"
+          - name: CHECK_DELAY
+            value: "10"
+          volumeMounts:
+            - mountPath: /etc/foundationdb
+              readOnly: true
+              name: fdb-cluster
+            - mountPath: /template
+              readOnly: true
+              name: joshua-agent-yaml
+      volumes:
+        - name: fdb-cluster
+          configMap:
+            name: fdb-cluster-file
+            items:
+              - key: fdb.cluster
+                path: fdb.cluster
+        - name: joshua-agent-yaml
+          configMap:
+            name: joshua-agent-template
+            items:
+              - key: joshua-agent.yaml.template
+                path: joshua-agent.yaml.template
+

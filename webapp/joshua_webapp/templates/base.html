@@ -1,0 +1,83 @@
+<!-- templates/base.html
+Style copied from https://docs.gitlab.com/ee/development/documentation/styleguide.html
+-->
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    {% if title %}
+    <title>{{ title }} - Joshua</title>
+    {% else %}
+    <title>Joshua</title>
+    {% endif %}
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='stylesheet-v64.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='highlight-v6.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='footer-v4.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='toc-v7.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='comments-v4.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <script src="{{ url_for('static', filename='sorttable.js') }}"></script>
+</head>
+
+<body>
+    <div class="header">
+        <div class="flex-container align-center">
+            <a class="header-link logo-container flex-container justify-center align-center" href="/">Home</a>
+        </div>
+
+        <div class="nav-container">
+            <ul class="nav">
+                {% if current_user.is_authenticated %}
+                <li class="nav-item">
+                    <a href="{{ url_for('main.profile') }}">Profile</a>
+                </li>
+                {% endif %}
+                {% if not current_user.is_authenticated %}
+                <li class="nav-item">
+                  <a href="{{ url_for('auth.login') }}">Login</a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('auth.signup') }}">Sign Up</a>
+                </li>
+                {% endif %}
+                <li class="nav-item">
+                    <a href="{{ url_for('main.job') }}">Jobs</a>
+                </li>
+                {% if current_user.is_authenticated %}
+                <li class="nav-item">
+                    <a href="{{ url_for('main.upload') }}">Upload</a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('auth.logout') }}">Logout</a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="wrapper">
+        <!-- <div class="nav-wrapper active">
+        </div> -->
+
+        <div class="main class js-main-wrapper">
+            <hr>
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <ul class="flashes">
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}
+            {% endblock %}
+        </div>
+    </div>
+</body>
+
+</html>

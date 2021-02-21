@@ -1,0 +1,11 @@
+<!-- templates/profile.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="title">
+  Welcome, {{ user.username }}!
+</h1>
+Your email address: {{ user.email }}.
+
+{% endblock %}

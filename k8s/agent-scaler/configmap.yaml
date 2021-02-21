@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fdb-cluster-file
+  namespace: joshua
+data:
+  fdb.cluster: |
+    joshua:joshua@172.17.0.1:4500
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: joshua-agent-template
+  namespace: joshua
+data:
+  joshua-agent.yaml.template: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: joshua-agent-${JOBNAME_SUFFIX}
+      namespace: joshua
+    spec:
+      template:
+        spec:
+          containers:
+          - name: joshua-agent-container
+            image: joshua-agent:latest
+            imagePullPolicy: Never
+            env:
+            - name: AGENT_TIMEOUT
+              value: "60"
+            volumeMounts:
+              - mountPath: /etc/foundationdb
+                readOnly: true
+                name: fdb-cluster
+          volumes:
+            - name: fdb-cluster
+              configMap:
+                name: fdb-cluster-file
+                items:
+                  - key: fdb.cluster
+                    path: fdb.cluster
+          restartPolicy: Never

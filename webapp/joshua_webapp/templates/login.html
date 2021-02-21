@@ -1,0 +1,16 @@
+<!-- templates/login.html -->
+
+{% extends "base.html" %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block content %}
+<h3>Sign In</h3>
+<div class="row">
+    <div class="col-md-4">
+        {{ wtf.quick_form(form) }}
+    </div>
+</div>
+<br>
+<p>New User? <a href="{{ url_for('auth.signup') }}">Click to Signup!</a></p>
+
+{% endblock %}

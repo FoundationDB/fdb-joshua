@@ -1,0 +1,5 @@
+{% import 'bootstrap/wtf.html' as wtf %}{% block content
+%}Ensemble,Username,Pass,Fail,Started,Ended,MaxRuns,Submitted,Stopped,RunTime,Remaining,Priority{%
+for ensemble, properties in ensembles %}
+{{ensemble}},{{ properties['username'] }},{{ properties['pass'] }},{{ properties['fail'] }},{{ properties['started'] }},{{ properties['ended'] }},{{ properties['max_runs'] }},{{ properties['submitted'] }},{{ properties['stopped'] }},{{ properties['runtime'] }},{{ properties['remaining'] }},{{ properties['priority'] }}{% endfor %}
+{% endblock %}

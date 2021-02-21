@@ -1,0 +1,12 @@
+- How to build
+./build.sh [--minikube] <tag>
+
+e.g)
+Build in the local docker
+./build.sh joshua-agent:latest
+
+Build in the minikube
+./build.sh --minikube joshua-agent:latest
+
+- How to run
+docker run -v <directory/to/find/fdb.cluster>:/etc/foundationdb joshua-agent:latest

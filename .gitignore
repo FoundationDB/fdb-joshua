@@ -1,0 +1,43 @@
+*.pyc
+*.swp
+*.tar.gz
+.testagents
+MANIFEST
+.idea/
+
+# Build things
+.cicd
+.eggs
+.tox
+dist
+build
+joshua.egg-info
+joshua_client.egg-info
+deploy
+
+mono-*
+valgrind-*
+
+# Runtime things
+.busybox
+.foundationdb
+.go
+.java8
+.java11
+.mono
+.node
+.python3
+.ruby
+.valgrind
+.swift
+.icu4c
+.tls
+fdb_connect.bash
+
+# For running locally
+.slug
+
+# Runtime config things
+fdb.cluster
+libfdb_primary
+libfdb_multiversion
