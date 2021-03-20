@@ -355,7 +355,15 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
 
     seed = random.getrandbits(63)
     env = process_handling.mark_environment(os.environ)
+    # Copy any env=NAME1=VALUE:NAME2=VALUE into the environment
+    # We do this first so that it can't overwrite anything below.
+    if 'env' in properties:
+        env_settings = [x.split('=', 1) for x in properties['env'].split(':')]
+        for k, v in env_settings:
+          env[k] = v
     for k, v in properties.items():
+        if k == 'env':
+            continue
         env["JOSHUA_" + k.upper()] = str(v)
     env["JOSHUA_SEED"] = str(seed).rstrip("L")
     # process_handling.ensure_path(env)
