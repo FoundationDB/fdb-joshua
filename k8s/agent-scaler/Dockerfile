@@ -3,7 +3,7 @@ FROM centos:centos7
 # Install Python 3 and Mono
 RUN yum update all && yum install -y yum-utils && \
     yum -y install centos-release-scl epel-release && \
-    yum -y install rh-python36-python rh-python36-python-pip gettext
+    yum -y install rh-python38-python rh-python38-python-pip gettext
 
 # kubectl
 RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl && chmod +x kubectl && mv kubectl /bin/
@@ -19,7 +19,7 @@ RUN chmod +x /lib64/libfdb_c.so
 ENV LD_LIBRARY_PATH="/lib64:$LD_LIBRARY_PATH"
 
 # FDB python binding
-RUN scl enable rh-python36 -- pip install foundationdb
+RUN scl enable rh-python38 -- pip install foundationdb
 
 ENV BATCH_SIZE=1
 ENV MAX_JOBS=10
