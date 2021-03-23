@@ -13,4 +13,4 @@ ENV AGENT_TIMEOUT=300
 
 # start 1 agent only
 # --work_dir and --cluster-file must be specified via command line
-CMD scl enable rh-python36 rh-ruby24 -- python3 -m joshua.joshua_agent -C ${FDB_CLUSTER_FILE} --work_dir ${AGENT_WORK_DIR} --agent-idle-timeout ${AGENT_TIMEOUT}
+CMD scl enable rh-python38 rh-ruby27 -- python3 -m joshua.joshua_agent -C ${FDB_CLUSTER_FILE} --work_dir ${AGENT_WORK_DIR} --agent-idle-timeout ${AGENT_TIMEOUT}
