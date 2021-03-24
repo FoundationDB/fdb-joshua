@@ -99,8 +99,8 @@ one) or by setting the `JOSHUA_USER` environment variable to the desired name.
 ## Build and Run Agent Docker Images
 
 To run Joshua agent processes, we provide a Docker image that can spawn multiple
-agent processes. This docker image created by `Docker/build_docker.sh` script,
-which uses `Docker/Dockerfile`.
+agent processes. This docker image created by `build.sh` script,
+which uses `Dockerfile`.
 
 Note restarting tests need old `fdbserver` binaries and TLS libraries, which
 should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
