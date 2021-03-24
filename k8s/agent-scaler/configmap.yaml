@@ -1,17 +1,13 @@
 apiVersion: v1
+data:
+  fdb.cluster: |
+    joshua:joshua@172.17.0.1:4500
 kind: ConfigMap
 metadata:
   name: fdb-cluster-file
   namespace: joshua
-data:
-  fdb.cluster: |
-    joshua:joshua@172.17.0.1:4500
 ---
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: joshua-agent-template
-  namespace: joshua
 data:
   joshua-agent.yaml.template: |
     apiVersion: batch/v1
@@ -41,3 +37,7 @@ data:
                   - key: fdb.cluster
                     path: fdb.cluster
           restartPolicy: Never
+kind: ConfigMap
+metadata:
+  name: joshua-agent-template
+  namespace: joshua
