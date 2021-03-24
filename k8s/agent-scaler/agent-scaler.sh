@@ -4,7 +4,7 @@ batch_size=${BATCH_SIZE:-1}
 max_jobs=${MAX_JOBS:-10}
 check_delay=${CHECK_DELAY:-10}
 
-namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+namespace=${NAMESPACE:-joshua}
 
 # run forever
 while [ 1 ]; do
