@@ -114,6 +114,7 @@ def start_ensemble(tarball,
                    max_runs=100000,
                    no_max_runs=False,
                    priority=100,
+                   env=[],
                    printable=True,
                    **args):
     if not allow_multiple:
@@ -123,6 +124,7 @@ def start_ensemble(tarball,
     properties['compressed'] = compressed
     properties['sanity'] = sanity
     properties['priority'] = priority
+    properties['env'] = ':'.join(env)
 
     if not no_timeout:
         properties['timeout'] = timeout
@@ -522,6 +524,12 @@ if __name__ == "__main__":
         metavar='PRIORITY',
         default=100,
         help='percent adjustment of CPU time allocated to this job')
+    parser_start.add_argument(
+        '--env',
+        metavar='name=value',
+        dest='env',
+        action='append',
+        default=[])
     parser_start.set_defaults(cmd=start_ensemble)
 
     parser_stop = subparsers.add_parser('stop', help='stop a test ensemble')
