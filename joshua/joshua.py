@@ -529,7 +529,8 @@ if __name__ == "__main__":
         metavar='name=value',
         dest='env',
         action='append',
-        default=[])
+        default=[],
+        help="environment variable to add to the job's execution")
     parser_start.set_defaults(cmd=start_ensemble)
 
     parser_stop = subparsers.add_parser('stop', help='stop a test ensemble')
