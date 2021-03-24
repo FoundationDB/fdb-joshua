@@ -16,34 +16,32 @@ spec:
         app: agent-scaler
       name: agent-scaler-app
     spec:
-      serviceAccountName: joshua-sa
       containers:
-        - name: agent-scaler-container
-          image: agent-scaler:latest
-          imagePullPolicy: Never
-          env:
-          - name: MAX_JOBS
-            value: "5"
-          - name: CHECK_DELAY
-            value: "10"
-          volumeMounts:
-            - mountPath: /etc/foundationdb
-              readOnly: true
-              name: fdb-cluster
-            - mountPath: /template
-              readOnly: true
-              name: joshua-agent-yaml
+      - env:
+        - name: MAX_JOBS
+          value: "5"
+        - name: CHECK_DELAY
+          value: "10"
+        image: agent-scaler:latest
+        name: agent-scaler-container
+        volumeMounts:
+        - mountPath: /etc/foundationdb
+          name: fdb-cluster
+          readOnly: true
+        - mountPath: /template
+          name: joshua-agent-yaml
+          readOnly: true
+      serviceAccountName: joshua-sa
       volumes:
-        - name: fdb-cluster
-          configMap:
-            name: fdb-cluster-file
-            items:
-              - key: fdb.cluster
-                path: fdb.cluster
-        - name: joshua-agent-yaml
-          configMap:
-            name: joshua-agent-template
-            items:
-              - key: joshua-agent.yaml.template
-                path: joshua-agent.yaml.template
-
+      - configMap:
+          items:
+          - key: fdb.cluster
+            path: fdb.cluster
+          name: fdb-cluster-file
+        name: fdb-cluster
+      - configMap:
+          items:
+          - key: joshua-agent.yaml.template
+            path: joshua-agent.yaml.template
+          name: joshua-agent-template
+        name: joshua-agent-yaml

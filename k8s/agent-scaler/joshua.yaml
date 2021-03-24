@@ -3,8 +3,8 @@ kind: Namespace
 metadata:
   name: joshua
 ---
-kind: ServiceAccount
 apiVersion: v1
+kind: ServiceAccount
 metadata:
   name: joshua-sa
   namespace: joshua
@@ -16,35 +16,41 @@ metadata:
   namespace: joshua
 rules:
 - apiGroups:
+  - ""
   - extensions
   - batch
   resources:
   - jobs
-  verbs: ["get","list","create","delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: joshua:system:auth-delegator
-subjects:
-- kind: ServiceAccount
-  name: joshua-sa
-  namespace: joshua
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: system:auth-delegator
+  - pods
+  verbs:
+  - get
+  - list
+  - create
+  - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: joshua-job-role-binding
   namespace: joshua
-subjects:
-- kind: ServiceAccount
-  name: joshua-sa
-  namespace: joshua
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: joshua-job-role
+subjects:
+- kind: ServiceAccount
+  name: joshua-sa
+  namespace: joshua
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: joshua:system:auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: joshua-sa
+  namespace: joshua
