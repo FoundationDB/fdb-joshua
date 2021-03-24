@@ -20,7 +20,7 @@ data:
         spec:
           containers:
           - name: joshua-agent-container
-            image: joshua-agent:latest
+            image: foundationdb/joshua-agent:latest
             imagePullPolicy: Never
             env:
             - name: AGENT_TIMEOUT

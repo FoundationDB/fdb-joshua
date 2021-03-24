@@ -22,7 +22,7 @@ spec:
           value: "5"
         - name: CHECK_DELAY
           value: "10"
-        image: agent-scaler:latest
+        image: foundationdb/agent-scaler:latest
         name: agent-scaler-container
         volumeMounts:
         - mountPath: /etc/foundationdb
