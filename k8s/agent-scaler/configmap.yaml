@@ -21,7 +21,7 @@ data:
           containers:
           - name: joshua-agent-container
             image: foundationdb/joshua-agent:latest
-            imagePullPolicy: Never
+            imagePullPolicy: IfNotPresent
             env:
             - name: AGENT_TIMEOUT
               value: "60"

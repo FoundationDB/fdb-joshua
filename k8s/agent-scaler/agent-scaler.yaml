@@ -23,6 +23,7 @@ spec:
         - name: CHECK_DELAY
           value: "10"
         image: foundationdb/agent-scaler:latest
+        imagePullPolicy: IfNotPresent
         name: agent-scaler-container
         volumeMounts:
         - mountPath: /etc/foundationdb
