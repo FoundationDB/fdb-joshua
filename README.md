@@ -1,6 +1,8 @@
 Joshua
 ======
 
+![Build Status](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiYjJNbDg3bWNDYk5jTVNhekpRZlJIK3lKRXB3TXRaUmg3Z1o1bzAya1JDR2dEVnlPU0pnMUc5Yms1QnBqMWxkM0Z5Vnk3bkhSa3ArQzdCMGxqU01EbjlVPSIsIml2UGFyYW1ldGVyU3BlYyI6IldYTGh0Njc4ajNpYi9KYlMiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main)
+
 > How about using FoundationDB to test FoundationDB?
 
 Joshua is a tool designed to coordinate ephemeral tests of the FoundationDB. The
