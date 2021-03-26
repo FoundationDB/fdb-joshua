@@ -9,6 +9,9 @@ RUN yum repolist && \
         yum-utils && \
     yum -y install \
         devtoolset-8 \
+        devtoolset-8-libasan-devel \
+        devtoolset-8-liblsan-devel \
+        devtoolset-8-libtsan-devel \
         devtoolset-8-libubsan-devel \
         devtoolset-8-valgrind-devel \
         gettext \
