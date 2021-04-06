@@ -13,7 +13,7 @@ Module = namedtuple('Module', [
 all_modules = [
     Module('joshua-client',
            'Joshua Client - interface to a great big supercomputer',
-           ['argparse', 'foundationdb', 'python-dateutil', 'lxml'], [],
+           ['argparse', 'foundationdb==6.2.10', 'python-dateutil', 'lxml'], [],
            [childsubreaper], [
                'Operating System :: MacOS :: MacOS X',
                'Operating System :: Microsoft :: Windows',
@@ -22,7 +22,7 @@ all_modules = [
     Module(
         'joshua',
         'Joshua - a supercomputer that runs simulations of war^H^H^Hdatabases',
-        ['argparse', 'foundationdb>=6.1.11', 'subprocess32'], [],
+        ['argparse', 'foundationdb==6.2.10', 'subprocess32'], [],
         [childsubreaper], ['Operating System :: POSIX :: Linux'])
 ]
 
