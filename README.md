@@ -51,7 +51,12 @@ To start an ensemble, create a `tar.gz` archive where there is a file
 called `joshua_test` within the top level directory. This file should be an
 executable bash script that performs whatever test you want to run. The
 test should finish with exit code 0 upon success and a non-zero exit code
-upon failure. Then submit the job by running (assuming your FoundationDB cluster
+upon failure. The [FoundationDB](https://github.com/apple/foundationdb) project
+can automatically generate the test ensemble with `package_tests` target, i.e.,
+`ninja package_tests`. The generated ensemble is located at
+`cmake_outputdir/packages/correctness-VERSION.tar.gz`.
+
+Then submit the job by running (assuming your FoundationDB cluster
 file is `./fdb.cluster`, otherwise use `-C path/to/cluster_file` for following
 commands):
 
