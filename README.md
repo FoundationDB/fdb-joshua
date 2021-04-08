@@ -99,12 +99,16 @@ one) or by setting the `JOSHUA_USER` environment variable to the desired name.
 ## Build and Run Agent Docker Images
 
 To run Joshua agent processes, we provide a Docker image that can spawn multiple
-agent processes. This docker image created by `build.sh` script,
-which uses `Dockerfile`.
+agent processes. This docker image is created by `build.sh` script, which uses
+`Dockerfile`. One thing to note is that the docker image *MUST* use the same
+major FDB version as the coordinator cluster (e.g., 6.2.* is incompatible with 6.3.*).
+So if your FDB cluster uses a version different from the `FDB_VERSION` specified
+in the `Dockerfile`, re-create the docker image with the right `FDB_VERSION` that
+matches your cluster version.
 
 Note restarting tests need old `fdbserver` binaries and TLS libraries, which
-should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
-respectively.
+are saved in `/app/deploy/global_data/oldBinaries/` and `/app/deploy/runtime/.tls_5_1/` directories,
+respectively, inside the docker image.
 
 To start agents, run
 ```shell
