@@ -357,7 +357,7 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
     env = process_handling.mark_environment(os.environ)
     # Copy any env=NAME1=VALUE:NAME2=VALUE into the environment
     # We do this first so that it can't overwrite anything below.
-    if 'env' in properties:
+    if 'env' in properties and properties['env']:
         env_settings = [x.split('=', 1) for x in properties['env'].split(':')]
         for k, v in env_settings:
           env[k] = v

@@ -124,7 +124,9 @@ def start_ensemble(tarball,
     properties['compressed'] = compressed
     properties['sanity'] = sanity
     properties['priority'] = priority
-    properties['env'] = ':'.join(env)
+    if env:
+        # omit 'env' property if nothing is set
+        properties['env'] = ':'.join(env)
 
     if not no_timeout:
         properties['timeout'] = timeout
