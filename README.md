@@ -51,7 +51,12 @@ To start an ensemble, create a `tar.gz` archive where there is a file
 called `joshua_test` within the top level directory. This file should be an
 executable bash script that performs whatever test you want to run. The
 test should finish with exit code 0 upon success and a non-zero exit code
-upon failure. Then submit the job by running (assuming your FoundationDB cluster
+upon failure. The [FoundationDB](https://github.com/apple/foundationdb) project
+can automatically generate the test ensemble with `package_tests` target, i.e.,
+`ninja package_tests`. The generated ensemble is located at
+`cmake_outputdir/packages/correctness-VERSION.tar.gz`.
+
+Then submit the job by running (assuming your FoundationDB cluster
 file is `./fdb.cluster`, otherwise use `-C path/to/cluster_file` for following
 commands):
 
@@ -99,12 +104,16 @@ one) or by setting the `JOSHUA_USER` environment variable to the desired name.
 ## Build and Run Agent Docker Images
 
 To run Joshua agent processes, we provide a Docker image that can spawn multiple
-agent processes. This docker image created by `build.sh` script,
-which uses `Dockerfile`.
+agent processes. This docker image is created by `build.sh` script, which uses
+`Dockerfile`. One thing to note is that the docker image *MUST* use the same
+major FDB version as the coordinator cluster (e.g., 6.2.* is incompatible with 6.3.*).
+So if your FDB cluster uses a version different from the `FDB_VERSION` specified
+in the `Dockerfile`, re-create the docker image with the right `FDB_VERSION` that
+matches your cluster version.
 
 Note restarting tests need old `fdbserver` binaries and TLS libraries, which
-should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
-respectively.
+are saved in `/app/deploy/global_data/oldBinaries/` and `/app/deploy/runtime/.tls_5_1/` directories,
+respectively, inside the docker image.
 
 To start agents, run
 ```shell
