@@ -1,6 +1,8 @@
 FROM centos:7
 # this is joshua-agent
 
+WORKDIR /tmp
+
 RUN yum repolist && \
     yum install -y \
         centos-release-scl-rh \
@@ -8,12 +10,12 @@ RUN yum repolist && \
         scl-utils \
         yum-utils && \
     yum -y install \
+        bzip2 \
         devtoolset-8 \
         devtoolset-8-libasan-devel \
         devtoolset-8-liblsan-devel \
         devtoolset-8-libtsan-devel \
         devtoolset-8-libubsan-devel \
-        devtoolset-8-valgrind-devel \
         gettext \
         golang \
         java-11-openjdk-devel \
@@ -42,6 +44,20 @@ RUN yum repolist && \
         joshua && \
     mkdir -p /var/joshua && \
     chown -R joshua:joshua /var/joshua && \
+    rm -rf /tmp/*
+
+# valgrind
+RUN source /opt/rh/devtoolset-8/enable && \
+    curl -Ls https://sourceware.org/pub/valgrind/valgrind-3.17.0.tar.bz2 -o valgrind-3.17.0.tar.bz2 && \
+    echo "ad3aec668e813e40f238995f60796d9590eee64a16dff88421430630e69285a2  valgrind-3.17.0.tar.bz2" > valgrind-sha.txt && \
+    sha256sum -c valgrind-sha.txt && \
+    mkdir valgrind && \
+    tar --strip-components 1 --no-same-owner --no-same-permissions --directory valgrind -xjf valgrind-3.17.0.tar.bz2 && \
+    cd valgrind && \
+    ./configure && \
+    make && \
+    make install && \
+    cd .. && \
     rm -rf /tmp/*
 
 COPY childsubreaper/ /opt/joshua/install/childsubreaper
