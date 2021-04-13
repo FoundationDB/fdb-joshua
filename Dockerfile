@@ -91,9 +91,11 @@ ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=300
 
 USER joshua
+# we need /usr/local/bin/ first in the path, so that we use valgrind-3.17 which supports clang 11 binaries
 CMD source /opt/rh/devtoolset-8/enable && \
     source /opt/rh/rh-python38/enable && \
     source /opt/rh/rh-ruby27/enable && \
+    export PATH=/usr/local/bin/:${PATH:+:${PATH}} && \
     python3 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \
         --work_dir /var/joshua \
