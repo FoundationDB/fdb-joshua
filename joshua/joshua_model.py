@@ -579,6 +579,9 @@ def _get_snap_counter(tr, ensemble_id, counter):
     else:
         return struct.unpack("<Q", b'' + value)[0]
 
+@transactional
+def get_snap_counter(tr, ensemble_id, counter):
+    return _get_snap_counter(tr, ensemble_id, counter)
 
 @transactional
 def log_started_test(tr, ensemble_id, seed, sanity=False):
@@ -641,8 +644,10 @@ def _insert_results(tr,
 
     if max_runs > 0:
         # This is a snapshot read so that two insertions don't conflict.
+        # This is how we get the number of finished runs
         ended = _get_snap_counter(tr, ensemble_id, 'ended')
         if ended >= max_runs:
+            # Instead of stop ensemble, we should stop spawning new tests
             _stop_ensemble(tr, ensemble_id, sanity)
 
     if duration:

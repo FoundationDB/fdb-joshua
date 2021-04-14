@@ -329,7 +329,7 @@ def cleanup(ensemble, where, seed, retcode=0, save_on='FAILURE', work_dir=None):
     # Clear the temporary directory.
     clear_directory(os.path.join(where, 'tmp'))
 
-
+# Run one random test for the emsemble
 def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeout_command_timeout=60):
     """
     Actually run the ensemble's test script.
@@ -351,6 +351,7 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
     timeout_command = properties.get('timeout_command', './joshua_timeout')
     timeout_time = properties.get('timeout', None)
     fail_fast = properties.get('fail_fast', 0)
+    # This is how to get the max_runs configured by user
     max_runs = properties.get('max_runs', 0)
 
     seed = random.getrandbits(63)
@@ -545,6 +546,14 @@ def agent(agent_timeout=None,
             if stopAgent():
                 log('Exiting due to global request')
                 break
+            # Break if the number of finished runs is larger than the max_runs
+            # Joshua agent stops spawning new tests when ended runs > max_runs
+            properties = joshua_model.get_ensemble_properties(ensemble)
+            max_runs = properties.get('max_runs', 0)
+            ended = joshua_model.get_snap_counter(ensemble, 'ended')
+            if ended > max_runs:
+                log('Exiting due to ended {} reaching max_runs {}'.format(ended, max_runs));
+                break;
 
             if (not watch) or watch.is_ready():
                 ensembles, watch = joshua_model.list_and_watch_active_ensembles(
