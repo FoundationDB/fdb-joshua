@@ -378,7 +378,7 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
     # Set environment variable to use the created temporary directory as its temporary directory.
     env["TMP"] = os.path.join(where, "tmp")
 
-    log('{}{}{}'.format(ensemble, seed, command))
+    log('{} {} {}'.format(ensemble, seed, command))
 
     if not joshua_model.try_starting_test(ensemble, seed, sanity):
         log("<job stopped or enough runs started>")
@@ -403,7 +403,7 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
         try:
             output, _ = process.communicate(timeout=1)
             retcode = process.poll()
-            log(retcode)
+            log('exit code: {}'.format(retcode))
             #output = output.decode('utf-8')
 
             break
