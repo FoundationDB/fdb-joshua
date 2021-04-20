@@ -621,6 +621,7 @@ class EnsembleProgressTracker:
                     return False
                 elif time.time() - last_time < timeout + 10: # 10 second buffer to give the other agent a chance to end their run
                     # Don't start it yet - maybe the other agent hasn't timed out yet
+                    time.sleep(1) # Avoid polling too frequently
                     return False
                 else:
                     # started >= max_runs, but ended hasn't increased in more
