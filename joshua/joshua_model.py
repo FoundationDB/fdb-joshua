@@ -642,13 +642,13 @@ def _insert_results(tr,
         _increment(tr, ensemble_id, 'pass')
         results = dir_ensemble_results_pass
 
-    if max_runs > 0:
-        # This is a snapshot read so that two insertions don't conflict.
-        # This is how we get the number of finished runs
-        ended = _get_snap_counter(tr, ensemble_id, 'ended')
-        if ended >= max_runs:
-            # Instead of stop ensemble, we should stop spawning new tests
-            _stop_ensemble(tr, ensemble_id, sanity)
+    # if max_runs > 0:
+    #     # This is a snapshot read so that two insertions don't conflict.
+    #     # This is how we get the number of finished runs
+    #     ended = _get_snap_counter(tr, ensemble_id, 'ended')
+    #     if ended >= max_runs:
+    #         # Instead of stop ensemble, we should stop spawning new tests
+    #         _stop_ensemble(tr, ensemble_id, sanity)
 
     if duration:
         _add(tr, ensemble_id, 'duration', int(duration))
