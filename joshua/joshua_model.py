@@ -596,9 +596,52 @@ def _get_snap_timeout(tr : fdb.TransactionRead, ensemble_id : str) -> int:
     value, = fdb.tuple.unpack(tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['timeout']))
     return value
 
-# map from ensemble_id to last known ended count and the most recent time we
-# observed the count change. Ordered by last updated.
-_last_ensemble_progress : OrderedDict[str, Tuple[int, float]] = OrderedDict()
+class EnsembleProgressTracker:
+    def __init__(self):
+        # map from ensemble_id to last known ended count and the most recent time we
+        # observed the count change. Ordered by last updated.
+        self._last_ensemble_progress : OrderedDict[str, Tuple[int, float]] = OrderedDict()
+
+    def try_start(self, tr : fdb.TransactionRead, ensemble_id : str) -> bool:
+        """
+        Return True if this agent should start a run for this ensemble. The
+        policy tries not to overshoot max_runs by too much, but also accounts
+        for the possibility that agents might die.
+        """
+        started = _get_snap_counter(tr, ensemble_id, "started")
+        ended = _get_snap_counter(tr, ensemble_id, "ended")
+        max_runs = _get_snap_max_runs(tr, ensemble_id)
+        timeout = _get_snap_timeout(tr, ensemble_id)
+        if started >= max_runs:
+            if ensemble_id in self._last_ensemble_progress:
+                (last_ended, last_time) = self._last_ensemble_progress[ensemble_id]
+                if ended > last_ended:
+                    self._last_ensemble_progress[ensemble_id] = ended, time.time()
+                    self._last_ensemble_progress.move_to_end(ensemble_id)
+                    return False
+                elif time.time() - last_time < timeout + 10: # 10 second buffer to give the other agent a chance to end their run
+                    # Don't start it yet - maybe the other agent hasn't timed out yet
+                    return False
+                else:
+                    # started >= max_runs, but ended hasn't increased in more
+                    # than timeout + 10 seconds. Start a run in case an agent
+                    # died after starting a run but before finishing it.
+                    return True
+            else:
+                # We don't know whether or not another agent could have timed out. Start tracking it and don't start a new run.
+                self._last_ensemble_progress[ensemble_id] = ended, time.time()
+                # We inserted an ensemble into _last_ensemble_progress, so try to limit memory usage by expiring one.
+                oldest_list = list(islice(self._last_ensemble_progress.items(), 1))
+                for oldest in oldest_list:
+                    if tr[dir_active[oldest]] == None:
+                        del self._last_ensemble_progress[oldest]
+                return False
+        else:
+            # started < max_runs
+            return True
+
+
+_ensemble_progress_tracker = EnsembleProgressTracker()
 
 @transactional
 def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
@@ -612,29 +655,9 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
 
-    global _last_ensemble_progress
-    started = _get_snap_counter(tr, ensemble_id, "started")
-    ended = _get_snap_counter(tr, ensemble_id, "ended")
-    max_runs = _get_snap_max_runs(tr, ensemble_id)
-    timeout = _get_snap_timeout(tr, ensemble_id)
-    if started >= max_runs:
-        if ensemble_id in _last_ensemble_progress:
-            (last_ended, last_time) = _last_ensemble_progress[ensemble_id]
-            if ended > last_ended:
-                _last_ensemble_progress[ensemble_id] = ended, time.time()
-                _last_ensemble_progress.move_to_end(ensemble_id)
-                return False
-            elif time.time() - last_time < timeout + 10: # 10 second buffer to give the other agent a chance to end their run
-                # Don't start it yet - maybe the other agent hasn't timed out yet
-                return False
-        else:
-            _last_ensemble_progress[ensemble_id] = ended, time.time()
-            # we inserted an ensemble into _last_ensemble_progress, so try to limit memory usage by expiring one.
-            oldest_list = list(islice(_last_ensemble_progress.items(), 1))
-            for oldest in oldest_list:
-                if tr[dir_active[oldest]] == None:
-                    del _last_ensemble_progress[oldest]
-            return False
+    global _ensemble_progress_tracker
+    if not _ensemble_progress_tracker.try_start(ensemble_id, tr):
+        return False
 
     _increment(tr, ensemble_id, 'started')
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid
