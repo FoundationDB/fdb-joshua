@@ -631,7 +631,7 @@ class EnsembleProgressTracker:
                 # We don't know whether or not another agent could have timed out. Start tracking it and don't start a new run.
                 self._last_ensemble_progress[ensemble_id] = ended, time.time()
                 # We inserted an ensemble into _last_ensemble_progress, so try to limit memory usage by expiring one.
-                oldest_list = list(islice(self._last_ensemble_progress.items(), 1))
+                oldest_list = list(islice(self._last_ensemble_progress.keys(), 1))
                 for oldest in oldest_list:
                     if tr[dir_active[oldest]] == None:
                         del self._last_ensemble_progress[oldest]
