@@ -623,6 +623,7 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
             if ended > last_ended:
                 _last_ensemble_progress[ensemble_id] = ended, time.time()
                 _last_ensemble_progress.move_to_end(ensemble_id)
+                return False
             elif time.time() - last_time < timeout + 10: # 10 second buffer to give the other agent a chance to end their run
                 # Don't start it yet - maybe the other agent hasn't timed out yet
                 return False
