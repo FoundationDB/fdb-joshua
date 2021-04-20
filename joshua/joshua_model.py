@@ -18,6 +18,8 @@
 # limitations under the License.
 #
 
+from collections import OrderedDict
+from itertools import islice
 from typing import Dict, Tuple, List, Any
 
 import fdb
@@ -216,7 +218,7 @@ def identify_existing_ensembles(tr, ensembles):
 
 
 @transactional
-def list_and_watch_active_ensembles(tr) -> Tuple[List[Any], fdb.Future]:
+def list_and_watch_active_ensembles(tr) -> Tuple[List[str], fdb.Future]:
     return _list_and_watch_ensembles(tr, dir_active, dir_active_changes)
 
 
@@ -589,6 +591,14 @@ def _get_snap_max_runs(tr : fdb.TransactionRead, ensemble_id : str) -> int:
     value, = fdb.tuple.unpack(tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['max_runs']))
     return value
 
+def _get_snap_timeout(tr : fdb.TransactionRead, ensemble_id : str) -> int:
+    """Read timeout for this ensemble at snapshot isolation. Precondition: ensemble exists."""
+    value, = fdb.tuple.unpack(tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['timeout']))
+    return value
+
+# map from ensemble_id to last known ended count and the most recent time we
+# observed the count change. Ordered by last updated.
+_last_ensemble_progress : OrderedDict[str, Tuple[int, float]] = OrderedDict()
 
 @transactional
 def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
@@ -602,10 +612,28 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
 
+    global _last_ensemble_progress
     started = _get_snap_counter(tr, ensemble_id, "started")
+    ended = _get_snap_counter(tr, ensemble_id, "ended")
     max_runs = _get_snap_max_runs(tr, ensemble_id)
+    timeout = _get_snap_timeout(tr, ensemble_id)
     if started >= max_runs:
-        return False
+        if ensemble_id in _last_ensemble_progress:
+            (last_ended, last_time) = _last_ensemble_progress[ensemble_id]
+            if ended > last_ended:
+                _last_ensemble_progress[ensemble_id] = ended, time.time()
+                _last_ensemble_progress.move_to_end(ensemble_id)
+            elif time.time() - last_time < timeout + 10: # 10 second buffer to give the other agent a chance to end their run
+                # Don't start it yet - maybe the other agent hasn't timed out yet
+                return False
+        else:
+            _last_ensemble_progress[ensemble_id] = ended, time.time()
+            # we inserted an ensemble into _last_ensemble_progress, so try to limit memory usage by expiring one.
+            oldest_list = list(islice(_last_ensemble_progress.items(), 1))
+            for oldest in oldest_list:
+                if tr[dir_active[oldest]] == None:
+                    del _last_ensemble_progress[oldest]
+            return False
 
     _increment(tr, ensemble_id, 'started')
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid

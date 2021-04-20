@@ -18,6 +18,7 @@
 # limitations under the License.
 #
 
+from typing import Dict, Tuple
 from . import joshua_model, process_handling
 import argparse, errno, os, random, shutil, re, sys, tarfile, traceback, tempfile, time
 import subprocess32 as subprocess
