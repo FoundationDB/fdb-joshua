@@ -202,7 +202,7 @@ def format_datetime(dt_obj):
     return dt_obj.strftime(TIMESTAMP_FMT)
 
 
-def _list_and_watch_ensembles(tr : fdb.TransactionRead, dir : fdb.DirectorySubspace, changes : fdb.DirectorySubspace):
+def _list_and_watch_ensembles(tr : fdb.Transaction, dir, changes):
     ensembles = []
     for k, v in tr[dir.range()]:
         ensemble, = dir.unpack(k)
@@ -278,7 +278,7 @@ def list_sanity_ensembles(tr) -> List[Tuple[str, Dict]]:
 
 
 def list_all_ensembles() -> List[Tuple[str, Dict]]:
-    ensembles = []
+    ensembles : List[Tuple[str, Dict]]= []
     r = dir_all_ensembles.range()
     start = r.start
     tr = db.create_transaction()
@@ -578,7 +578,7 @@ def _add(tr : fdb.Transaction, ensemble_id : str, counter : str, value : int) ->
     tr.add(dir_all_ensembles[ensemble_id]['count'][counter], byte_val)
 
 
-def _get_snap_counter(tr : fdb.TransactionRead, ensemble_id : str, counter : str) -> int:
+def _get_snap_counter(tr : fdb.Transaction, ensemble_id : str, counter : str) -> int:
     value = tr.snapshot.get(dir_all_ensembles[ensemble_id]['count'][counter])
     if value == None:
         return 0
@@ -586,12 +586,12 @@ def _get_snap_counter(tr : fdb.TransactionRead, ensemble_id : str, counter : str
         return struct.unpack("<Q", b'' + value)[0]
 
 
-def _get_snap_max_runs(tr : fdb.TransactionRead, ensemble_id : str) -> int:
+def _get_snap_max_runs(tr : fdb.Transaction, ensemble_id : str) -> int:
     """Read max_runs for this ensemble at snapshot isolation. Precondition: ensemble exists."""
     value, = fdb.tuple.unpack(tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['max_runs']))
     return value
 
-def _get_snap_timeout(tr : fdb.TransactionRead, ensemble_id : str) -> int:
+def _get_snap_timeout(tr : fdb.Transaction, ensemble_id : str) -> int:
     """Read timeout for this ensemble at snapshot isolation. Precondition: ensemble exists."""
     value, = fdb.tuple.unpack(tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['timeout']))
     return value
@@ -602,7 +602,7 @@ class EnsembleProgressTracker:
         # observed the count change. Ordered by last updated.
         self._last_ensemble_progress : OrderedDict[str, Tuple[int, float]] = OrderedDict()
 
-    def try_start(self, tr : fdb.TransactionRead, ensemble_id : str) -> bool:
+    def try_start(self, ensemble_id : str, tr : fdb.Transaction) -> bool:
         """
         Return True if this agent should start a run for this ensemble. The
         policy tries not to overshoot max_runs by too much, but also accounts
