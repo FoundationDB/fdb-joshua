@@ -379,8 +379,8 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
 
     log('{}{}{}'.format(ensemble, seed, command))
 
-    if not joshua_model.log_started_test(ensemble, seed, sanity):
-        log("<jobstopped>")
+    if not joshua_model.try_starting_test(ensemble, seed, sanity):
+        log("<job stopped or enough runs started>")
         return -3
 
     # Run the test and log output

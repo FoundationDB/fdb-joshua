@@ -584,8 +584,15 @@ def _get_snap_counter(tr : fdb.TransactionRead, ensemble_id : str, counter : str
         return struct.unpack("<Q", b'' + value)[0]
 
 
+def _get_snap_max_runs(tr : fdb.TransactionRead, ensemble_id : str) -> int:
+    """Read max_runs for this ensemble at snapshot isolation. Precondition: ensemble exists."""
+    value, = fdb.tuple.unpack(tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['max_runs']))
+    return value
+
+
 @transactional
-def log_started_test(tr, ensemble_id, seed, sanity=False):
+def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
+    """Return true if we should continue executing this test"""
     dir, _ = get_dir_changes(sanity)
 
     if tr[dir[ensemble_id]] == None:
@@ -594,6 +601,12 @@ def log_started_test(tr, ensemble_id, seed, sanity=False):
     if tr[dir_ensemble_incomplete[ensemble_id][seed]] != None:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
+
+    started = _get_snap_counter(tr, ensemble_id, "started")
+    max_runs = _get_snap_max_runs(tr, ensemble_id)
+    if started >= max_runs:
+        return False
+
     _increment(tr, ensemble_id, 'started')
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid
     return True
