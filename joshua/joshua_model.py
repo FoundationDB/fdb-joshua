@@ -18,7 +18,11 @@
 # limitations under the License.
 #
 
+from typing import Dict, Tuple, List, Any
+
 import fdb
+fdb.api_version(520)
+import fdb.tuple
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -196,7 +200,7 @@ def format_datetime(dt_obj):
     return dt_obj.strftime(TIMESTAMP_FMT)
 
 
-def _list_and_watch_ensembles(tr, dir, changes):
+def _list_and_watch_ensembles(tr : fdb.TransactionRead, dir : fdb.DirectorySubspace, changes : fdb.DirectorySubspace):
     ensembles = []
     for k, v in tr[dir.range()]:
         ensemble, = dir.unpack(k)
@@ -212,7 +216,7 @@ def identify_existing_ensembles(tr, ensembles):
 
 
 @transactional
-def list_and_watch_active_ensembles(tr):
+def list_and_watch_active_ensembles(tr) -> Tuple[List[Any], fdb.Future]:
     return _list_and_watch_ensembles(tr, dir_active, dir_active_changes)
 
 
@@ -242,7 +246,7 @@ def _unpack_property(ensemble, key, value, into):
         into[t[1]] = struct.unpack("<Q", value)[0]
 
 
-def _list_ensembles(tr, dir):
+def _list_ensembles(tr, dir) -> List[Tuple[str, Dict]]:
     prop_reads = []
     for k, v in tr[dir.range()]:
         ensemble, = dir.unpack(k)
@@ -262,16 +266,16 @@ def _list_ensembles(tr, dir):
 
 
 @transactional
-def list_active_ensembles(tr):
+def list_active_ensembles(tr) -> List[Tuple[str, Dict]]:
     return _list_ensembles(tr, dir_active)
 
 
 @transactional
-def list_sanity_ensembles(tr):
+def list_sanity_ensembles(tr) -> List[Tuple[str, Dict]]:
     return _list_ensembles(tr, dir_sanity)
 
 
-def list_all_ensembles():
+def list_all_ensembles() -> List[Tuple[str, Dict]]:
     ensembles = []
     r = dir_all_ensembles.range()
     start = r.start
@@ -421,7 +425,7 @@ def stop_user_ensembles(username, sanity=False):
             stop_ensemble(e, sanity)
 
 
-def get_active_ensembles(stopped, sanity=False, username=None):
+def get_active_ensembles(stopped, sanity=False, username=None) -> List[Tuple[str, Dict]]:
     if stopped:
         ensemble_list = list_all_ensembles()
     elif sanity:
@@ -563,16 +567,16 @@ def set_versionstamped_key(tr, prefix, suffix, value):
                     len(prefix) + 3), value)
 
 
-def _increment(tr, ensemble_id, counter):
+def _increment(tr : fdb.Transaction, ensemble_id : str, counter : str) -> None:
     tr.add(dir_all_ensembles[ensemble_id]['count'][counter], ONE)
 
 
-def _add(tr, ensemble_id, counter, value):
+def _add(tr : fdb.Transaction, ensemble_id : str, counter : str, value : int) -> None:
     byte_val = struct.pack("<Q", value)
     tr.add(dir_all_ensembles[ensemble_id]['count'][counter], byte_val)
 
 
-def _get_snap_counter(tr, ensemble_id, counter):
+def _get_snap_counter(tr : fdb.TransactionRead, ensemble_id : str, counter : str) -> int:
     value = tr.snapshot.get(dir_all_ensembles[ensemble_id]['count'][counter])
     if value == None:
         return 0
