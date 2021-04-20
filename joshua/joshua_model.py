@@ -588,7 +588,10 @@ def _get_snap_counter(tr : fdb.Transaction, ensemble_id : str, counter : str) ->
 
 def _get_snap_max_runs(tr : fdb.Transaction, ensemble_id : str) -> int:
     """Read max_runs for this ensemble at snapshot isolation. Precondition: ensemble exists."""
-    value, = fdb.tuple.unpack(tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['max_runs']))
+    result = tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['max_runs'])
+    if result == None:
+        return 0
+    value, = fdb.tuple.unpack(result)
     return value
 
 def _get_snap_timeout(tr : fdb.Transaction, ensemble_id : str) -> int:
@@ -612,7 +615,8 @@ class EnsembleProgressTracker:
         ended = _get_snap_counter(tr, ensemble_id, "ended")
         max_runs = _get_snap_max_runs(tr, ensemble_id)
         timeout = _get_snap_timeout(tr, ensemble_id)
-        if started >= max_runs:
+        # max_runs == 0 means run forever
+        if max_runs > 0 and started >= max_runs:
             if ensemble_id in self._last_ensemble_progress:
                 (last_ended, last_time) = self._last_ensemble_progress[ensemble_id]
                 if ended > last_ended:
