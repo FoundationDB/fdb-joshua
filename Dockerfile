@@ -96,6 +96,6 @@ CMD source /opt/rh/devtoolset-8/enable && \
     source /opt/rh/rh-ruby27/enable && \
     python3 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \
-        --work_dir /dev/shm/joshua \
+        --work_dir /var/joshua \
         --agent-idle-timeout ${AGENT_TIMEOUT}
 
