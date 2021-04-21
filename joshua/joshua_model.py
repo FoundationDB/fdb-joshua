@@ -598,7 +598,7 @@ def _get_snap_timeout(tr : fdb.Transaction, ensemble_id : str) -> int:
     """Read timeout for this ensemble at snapshot isolation. Returns a default of 5400 if timeout is not set"""
     result = tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['timeout'])
     if result == None:
-        return 0
+        return 5400
     value, = fdb.tuple.unpack(result)
     return value
 
