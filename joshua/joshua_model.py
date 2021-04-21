@@ -227,17 +227,21 @@ def list_and_watch_sanity_ensembles(tr):
     return _list_and_watch_ensembles(tr, dir_sanity, dir_sanity_changes)
 
 
-@transactional
-def get_ensemble_properties(tr, ensemble):
+def _get_ensemble_properties(tr, ensemble, snapshot=False):
     props = {}
     r = dir_all_ensembles[ensemble].range()
-    prop_kvs = tr.get_range(r.start,
-                            r.stop,
-                            streaming_mode=fdb.StreamingMode.want_all)
+    prop_kvs = (tr.snapshot if snapshot else tr).get_range(
+        r.start, r.stop, streaming_mode=fdb.StreamingMode.want_all
+    )
     for key, value in prop_kvs:
         _unpack_property(ensemble, key, value, props)
 
     return props
+
+
+@transactional
+def get_ensemble_properties(tr, ensemble, snapshot=False):
+    return _get_ensemble_properties(tr, ensemble, snapshot=snapshot)
 
 
 def _unpack_property(ensemble, key, value, into):
@@ -586,22 +590,6 @@ def _get_snap_counter(tr : fdb.Transaction, ensemble_id : str, counter : str) ->
         return struct.unpack("<Q", b'' + value)[0]
 
 
-def _get_snap_max_runs(tr : fdb.Transaction, ensemble_id : str) -> int:
-    """Read max_runs for this ensemble at snapshot isolation. Returns a default of 0 if max_runs is not set"""
-    result = tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['max_runs'])
-    if result == None:
-        return 0
-    value, = fdb.tuple.unpack(result)
-    return value
-
-def _get_snap_timeout(tr : fdb.Transaction, ensemble_id : str) -> int:
-    """Read timeout for this ensemble at snapshot isolation. Returns a default of 5400 if timeout is not set"""
-    result = tr.snapshot.get(dir_all_ensembles[ensemble_id]['properties']['timeout'])
-    if result == None:
-        return 5400
-    value, = fdb.tuple.unpack(result)
-    return value
-
 class EnsembleProgressTracker:
     def __init__(self):
         # map from ensemble_id to last known ended count and the most recent time we
@@ -614,10 +602,11 @@ class EnsembleProgressTracker:
         policy tries not to overshoot max_runs by too much, but also accounts
         for the possibility that agents might die.
         """
-        started = _get_snap_counter(tr, ensemble_id, "started")
-        ended = _get_snap_counter(tr, ensemble_id, "ended")
-        max_runs = _get_snap_max_runs(tr, ensemble_id)
-        timeout = _get_snap_timeout(tr, ensemble_id)
+        props = _get_ensemble_properties(tr, ensemble_id, snapshot=True)
+        started = props.get("started", 0)
+        ended = props.get("ended", 0)
+        max_runs = props.get("max_runs", 0)
+        timeout = props.get("timeout", 5400)
         # max_runs == 0 means run forever
         if max_runs > 0 and started >= max_runs:
             if ensemble_id in self._last_ensemble_progress:

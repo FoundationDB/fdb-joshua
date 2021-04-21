@@ -220,8 +220,6 @@ def test_two_agents(tmp_path, empty_ensemble):
     # seconds passed without the first agent completing the ensemble)
     assert get_started(joshua_model.db) == 1
 
-    assert joshua_model._get_snap_max_runs
-
     for agent in agents:
         agent.join()
 
