@@ -590,7 +590,7 @@ def _get_snap_counter(tr : fdb.Transaction, ensemble_id : str, counter : str) ->
         return struct.unpack("<Q", b'' + value)[0]
 
 
-class EnsembleProgressTracker:
+class _EnsembleProgressTracker:
     def __init__(self):
         # map from ensemble_id to last known ended count and the most recent time we
         # observed the count change. Ordered by last updated.
@@ -598,9 +598,7 @@ class EnsembleProgressTracker:
 
     def try_start(self, ensemble_id : str, tr : fdb.Transaction) -> bool:
         """
-        Return True if this agent should start a run for this ensemble. The
-        policy tries not to overshoot max_runs by too much, but also accounts
-        for the possibility that agents might die.
+        See should_run_ensemble
         """
         props = _get_ensemble_properties(tr, ensemble_id, snapshot=True)
         started = props.get("started", 0)
@@ -638,7 +636,19 @@ class EnsembleProgressTracker:
             return True
 
 
-_ensemble_progress_tracker = EnsembleProgressTracker()
+_ensemble_progress_tracker = _EnsembleProgressTracker()
+
+
+@transactional
+def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str):
+    """
+    Return True if this agent should start a run for this ensemble. The
+    policy tries not to overshoot max_runs by too much, but also accounts
+    for the possibility that agents might die.
+    """
+    global _ensemble_progress_tracker
+    return _ensemble_progress_tracker.try_start(ensemble_id, tr)
+
 
 @transactional
 def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
@@ -651,10 +661,6 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
     if tr[dir_ensemble_incomplete[ensemble_id][seed]] != None:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
-
-    global _ensemble_progress_tracker
-    if not _ensemble_progress_tracker.try_start(ensemble_id, tr):
-        return False
 
     _increment(tr, ensemble_id, 'started')
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid
