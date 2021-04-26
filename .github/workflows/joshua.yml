@@ -1,0 +1,27 @@
+name: Joshua
+
+on:
+  pull_request:
+    branches: [ main ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Install fdb and dependencies
+        run: |
+          wget https://www.foundationdb.org/downloads/6.3.12/ubuntu/installers/foundationdb-clients_6.3.12-1_amd64.deb --no-check-certificate
+          wget https://www.foundationdb.org/downloads/6.3.12/ubuntu/installers/foundationdb-server_6.3.12-1_amd64.deb --no-check-certificate
+          echo "05b11ac59cb44012e863113fa552c6cf53fb04cfbdb8e72a4a62770cbd2ddd81  foundationdb-clients_6.3.12-1_amd64.deb" >> checks.txt
+          echo "15472291c463c617f4f4f2c5e2fcb52ecb08757e481ee7f35e1b352999a7ea99  foundationdb-server_6.3.12-1_amd64.deb" >> checks.txt
+          sha256sum -c checks.txt && sudo dpkg -i *.deb
+          sudo pip3 install foundationdb lxml pytest
+
+      - name: Test
+        run: |
+          pytest -v

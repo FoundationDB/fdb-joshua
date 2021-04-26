@@ -18,7 +18,13 @@
 # limitations under the License.
 #
 
+from collections import OrderedDict
+from itertools import islice
+from typing import Dict, Tuple, List, Any
+
 import fdb
+fdb.api_version(520)
+import fdb.tuple
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -196,7 +202,7 @@ def format_datetime(dt_obj):
     return dt_obj.strftime(TIMESTAMP_FMT)
 
 
-def _list_and_watch_ensembles(tr, dir, changes):
+def _list_and_watch_ensembles(tr : fdb.Transaction, dir, changes):
     ensembles = []
     for k, v in tr[dir.range()]:
         ensemble, = dir.unpack(k)
@@ -212,7 +218,7 @@ def identify_existing_ensembles(tr, ensembles):
 
 
 @transactional
-def list_and_watch_active_ensembles(tr):
+def list_and_watch_active_ensembles(tr) -> Tuple[List[str], fdb.Future]:
     return _list_and_watch_ensembles(tr, dir_active, dir_active_changes)
 
 
@@ -221,17 +227,21 @@ def list_and_watch_sanity_ensembles(tr):
     return _list_and_watch_ensembles(tr, dir_sanity, dir_sanity_changes)
 
 
-@transactional
-def get_ensemble_properties(tr, ensemble):
+def _get_ensemble_properties(tr, ensemble, snapshot=False):
     props = {}
     r = dir_all_ensembles[ensemble].range()
-    prop_kvs = tr.get_range(r.start,
-                            r.stop,
-                            streaming_mode=fdb.StreamingMode.want_all)
+    prop_kvs = (tr.snapshot if snapshot else tr).get_range(
+        r.start, r.stop, streaming_mode=fdb.StreamingMode.want_all
+    )
     for key, value in prop_kvs:
         _unpack_property(ensemble, key, value, props)
 
     return props
+
+
+@transactional
+def get_ensemble_properties(tr, ensemble, snapshot=False):
+    return _get_ensemble_properties(tr, ensemble, snapshot=snapshot)
 
 
 def _unpack_property(ensemble, key, value, into):
@@ -242,7 +252,7 @@ def _unpack_property(ensemble, key, value, into):
         into[t[1]] = struct.unpack("<Q", value)[0]
 
 
-def _list_ensembles(tr, dir):
+def _list_ensembles(tr, dir) -> List[Tuple[str, Dict]]:
     prop_reads = []
     for k, v in tr[dir.range()]:
         ensemble, = dir.unpack(k)
@@ -262,17 +272,17 @@ def _list_ensembles(tr, dir):
 
 
 @transactional
-def list_active_ensembles(tr):
+def list_active_ensembles(tr) -> List[Tuple[str, Dict]]:
     return _list_ensembles(tr, dir_active)
 
 
 @transactional
-def list_sanity_ensembles(tr):
+def list_sanity_ensembles(tr) -> List[Tuple[str, Dict]]:
     return _list_ensembles(tr, dir_sanity)
 
 
-def list_all_ensembles():
-    ensembles = []
+def list_all_ensembles() -> List[Tuple[str, Dict]]:
+    ensembles : List[Tuple[str, Dict]]= []
     r = dir_all_ensembles.range()
     start = r.start
     tr = db.create_transaction()
@@ -421,7 +431,7 @@ def stop_user_ensembles(username, sanity=False):
             stop_ensemble(e, sanity)
 
 
-def get_active_ensembles(stopped, sanity=False, username=None):
+def get_active_ensembles(stopped, sanity=False, username=None) -> List[Tuple[str, Dict]]:
     if stopped:
         ensemble_list = list_all_ensembles()
     elif sanity:
@@ -563,16 +573,16 @@ def set_versionstamped_key(tr, prefix, suffix, value):
                     len(prefix) + 3), value)
 
 
-def _increment(tr, ensemble_id, counter):
+def _increment(tr : fdb.Transaction, ensemble_id : str, counter : str) -> None:
     tr.add(dir_all_ensembles[ensemble_id]['count'][counter], ONE)
 
 
-def _add(tr, ensemble_id, counter, value):
+def _add(tr : fdb.Transaction, ensemble_id : str, counter : str, value : int) -> None:
     byte_val = struct.pack("<Q", value)
     tr.add(dir_all_ensembles[ensemble_id]['count'][counter], byte_val)
 
 
-def _get_snap_counter(tr, ensemble_id, counter):
+def _get_snap_counter(tr : fdb.Transaction, ensemble_id : str, counter : str) -> int:
     value = tr.snapshot.get(dir_all_ensembles[ensemble_id]['count'][counter])
     if value == None:
         return 0
@@ -580,8 +590,69 @@ def _get_snap_counter(tr, ensemble_id, counter):
         return struct.unpack("<Q", b'' + value)[0]
 
 
+class _EnsembleProgressTracker:
+    def __init__(self):
+        # map from ensemble_id to last known ended count and the most recent time we
+        # observed the count change. Ordered by last updated.
+        self._last_ensemble_progress : OrderedDict[str, Tuple[int, float]] = OrderedDict()
+
+    def try_start(self, ensemble_id : str, tr : fdb.Transaction) -> bool:
+        """
+        See should_run_ensemble
+        """
+        props = _get_ensemble_properties(tr, ensemble_id, snapshot=True)
+        started = props.get("started", 0)
+        ended = props.get("ended", 0)
+        max_runs = props.get("max_runs", 0)
+        timeout = props.get("timeout", 5400)
+        # max_runs == 0 means run forever
+        if max_runs > 0 and started >= max_runs:
+            if ensemble_id in self._last_ensemble_progress:
+                (last_ended, last_time) = self._last_ensemble_progress[ensemble_id]
+                if ended > last_ended:
+                    self._last_ensemble_progress[ensemble_id] = ended, time.time()
+                    self._last_ensemble_progress.move_to_end(ensemble_id)
+                    return False
+                elif time.time() - last_time < timeout + 10: # 10 second buffer to give the other agent a chance to end their run
+                    # Don't start it yet - maybe the other agent hasn't timed out yet
+                    time.sleep(1) # Avoid polling too frequently
+                    return False
+                else:
+                    # started >= max_runs, but ended hasn't increased in more
+                    # than timeout + 10 seconds. Start a run in case an agent
+                    # died after starting a run but before finishing it.
+                    return True
+            else:
+                # We don't know whether or not another agent could have timed out. Start tracking it and don't start a new run.
+                self._last_ensemble_progress[ensemble_id] = ended, time.time()
+                # We inserted an ensemble into _last_ensemble_progress, so try to limit memory usage by expiring one.
+                oldest_list = list(islice(self._last_ensemble_progress.keys(), 1))
+                for oldest in oldest_list:
+                    if tr[dir_active[oldest]] == None:
+                        del self._last_ensemble_progress[oldest]
+                return False
+        else:
+            # started < max_runs
+            return True
+
+
+_ensemble_progress_tracker = _EnsembleProgressTracker()
+
+
 @transactional
-def log_started_test(tr, ensemble_id, seed, sanity=False):
+def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str):
+    """
+    Return True if this agent should start a run for this ensemble. The
+    policy tries not to overshoot max_runs by too much, but also accounts
+    for the possibility that agents might die.
+    """
+    global _ensemble_progress_tracker
+    return _ensemble_progress_tracker.try_start(ensemble_id, tr)
+
+
+@transactional
+def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
+    """Return true if we should continue executing this test"""
     dir, _ = get_dir_changes(sanity)
 
     if tr[dir[ensemble_id]] == None:
@@ -590,6 +661,7 @@ def log_started_test(tr, ensemble_id, seed, sanity=False):
     if tr[dir_ensemble_incomplete[ensemble_id][seed]] != None:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
+
     _increment(tr, ensemble_id, 'started')
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid
     return True
