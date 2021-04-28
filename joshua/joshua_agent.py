@@ -18,7 +18,6 @@
 # limitations under the License.
 #
 
-from typing import Dict, Tuple
 from . import joshua_model, process_handling
 import argparse, errno, os, random, shutil, re, sys, tarfile, traceback, tempfile, time
 import subprocess32 as subprocess
@@ -378,10 +377,10 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
     # Set environment variable to use the created temporary directory as its temporary directory.
     env["TMP"] = os.path.join(where, "tmp")
 
-    log('{} {} {}'.format(ensemble, seed, command))
+    log('{}{}{}'.format(ensemble, seed, command))
 
-    if not joshua_model.try_starting_test(ensemble, seed, sanity):
-        log("<job stopped>")
+    if not joshua_model.log_started_test(ensemble, seed, sanity):
+        log("<jobstopped>")
         return -3
 
     # Run the test and log output
@@ -403,7 +402,7 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
         try:
             output, _ = process.communicate(timeout=1)
             retcode = process.poll()
-            log('exit code: {}'.format(retcode))
+            log(retcode)
             #output = output.decode('utf-8')
 
             break
@@ -623,17 +622,7 @@ def agent(agent_timeout=None,
                     ensemble_dir(e, basepath=work_dir), True
                 )  # SOMEDAY: this sometimes throws errors, but we don't know why and it isn't that important
 
-            ensembles_can_run = None
-            if ensembles:
-                ensembles_can_run = list(filter(joshua_model.should_run_ensemble, ensembles))
-                if not ensembles_can_run:
-                    # All the ensembles have enough runs started for now. Don't
-                    # time the agent out, just wait until there are no
-                    # ensembles or the other agents might have died.
-                    time.sleep(1)
-                    continue
-            else:
-                # No ensembles at all. Consider timing this agent out.
+            if not ensembles:
                 try:
                     watch.wait_for_any(watch, sanity_watch, TimeoutFuture(1.0))
                 except Exception as e:
@@ -645,20 +634,17 @@ def agent(agent_timeout=None,
                 now = time.time()
                 if (agent_timeout is not None and now - start >= agent_timeout) or \
                    (agent_idle_timeout is not None and now - idle_start >= agent_idle_timeout):
-                    log("Agent timed out")
                     break
                 else:
                     continue
-
-            assert ensembles_can_run
 
             # Pick an ensemble to run. Weight by amount of time spent on each one.
 
 
 #            print('{} Picking from {} ensembles'.format(threading.current_thread().name, len(ensembles)))
-            durations = joshua_model.get_ensemble_mean_durations(ensembles_can_run)
-            priorities = joshua_model.get_ensemble_priorities(ensembles_can_run)
-            buckets = [(en, priorities[en] / durations[en]) for en in ensembles_can_run]
+            durations = joshua_model.get_ensemble_mean_durations(ensembles)
+            priorities = joshua_model.get_ensemble_priorities(ensembles)
+            buckets = [(en, priorities[en] / durations[en]) for en in ensembles]
             choice = random.random() * sum([width for _, width in buckets])
             chosen_ensemble = None
             so_far = 0.0
