@@ -105,14 +105,6 @@ def list_active_ensembles(stopped, sanity=False, username=None, show_in_progress
     return ensemble_list
 
 
-def show_in_progress(ensemble=None, sanity=False, username=None, **kwargs):
-    if ensemble is None:
-        ensemble = [e for e, _ in joshua_model.list_active_ensembles()]
-    print(ensemble)
-    for e in ensemble:
-        print(e, joshua_model.show_in_progress(ensemble))
-
-
 def start_ensemble(tarball,
                    command,
                    properties,
