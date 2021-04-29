@@ -18,8 +18,9 @@
 # limitations under the License.
 #
 
-from typing import Dict, Tuple, List
+from collections import defaultdict
 
+from typing import Dict, Tuple, List
 import fdb
 fdb.api_version(520)
 import fdb.tuple
@@ -629,6 +630,28 @@ def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str) -> bool:
         # max_runs == 0 or started < max_runs
         return True
 
+
+@transactional
+def show_in_progress(tr : fdb.Transaction, ensemble_id : str) -> List[Tuple[int, Dict]]:
+    """
+    Returns a list of properties for in progress tests
+    """
+    result = defaultdict(dict)
+    for k, v in tr[dir_ensemble_incomplete[ensemble_id].range()]:
+        property = dir_ensemble_incomplete[ensemble_id].unpack(k)
+        if property[0] == "heartbeat":
+            seed = property[1]
+            result[seed]["heartbeat"] = fdb.tuple.unpack(v)[0]
+            result[seed]["seed"] = seed
+        elif len(property) > 1:
+            seed = property[0]
+            result[seed][property[1]] = fdb.tuple.unpack(v)[0]
+            result[seed]["seed"] = seed
+            if property[1] == "began_at":
+                result[seed]["running_for"] = time.time() - fdb.tuple.unpack(v)[0]
+    return list(result.values())
+
+
 @transactional
 def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
     """Return true if we should continue executing this test"""
@@ -656,7 +679,7 @@ def heartbeat_and_check_running(tr, ensemble_id, seed, sanity=False):
     result = tr[dir[ensemble_id]] != None and tr[
         dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
     if result:
-        tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]] = fdb.tuple.pack(time.time())
+        tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]] = fdb.tuple.pack((time.time(),))
     return result
 
 
