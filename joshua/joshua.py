@@ -97,8 +97,8 @@ def list_active_ensembles(stopped, sanity=False, username=None, show_in_progress
         print('Currently active ensembles:')
     for e, props in ensemble_list:
         print(format_ensemble(e, props))
-        print('\tCurrently active tests:')
         if show_in_progress:
+            print('\tCurrently active tests:')
             for props in joshua_model.show_in_progress(e):
                 print('\t{}'.format(' '.join('{}={}'.format(k, v) for k, v in sorted(props.items()))))
 
