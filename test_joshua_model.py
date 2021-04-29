@@ -156,12 +156,9 @@ def test_dead_agent(tmp_path, empty_ensemble):
     ensemble_id = joshua_model.create_ensemble(
         "joshua", {"max_runs": 1, "timeout": 1}, open(empty_ensemble, "rb")
     )
-    # simulate another agent dying after incrementing started but before incrementing ended
-    @fdb.transactional
-    def incr_start(tr):
-        joshua_model._increment(tr, ensemble_id, "started")
 
-    incr_start(joshua_model.db)
+    # simulate another agent dying after starting a test
+    assert joshua_model.try_starting_test(ensemble_id, 12345)
 
     agent = threading.Thread(
         target=joshua_agent.agent,
@@ -250,9 +247,6 @@ def test_two_ensembles_memory_usage(tmp_path, empty_ensemble):
     ensemble_id = joshua_model.create_ensemble(
         "joshua", {"max_runs": 1, "timeout": 1}, open(empty_ensemble, "rb")
     )
-
-    # inserting the second ensemble should remove the in-memory state for the first one
-    assert len(joshua_model._ensemble_progress_tracker._last_ensemble_progress) == 1
 
     # Ensemble two should eventually end
     joshua.tail_ensemble(ensemble_id, username="joshua")

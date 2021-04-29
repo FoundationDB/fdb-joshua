@@ -410,7 +410,7 @@ def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeo
         except subprocess.TimeoutExpired:
             # The "timeout" is just an opportunity to poll the database to see if this ensemble has been stopped
             # Possibly in the future we will implement an actual timeout option
-            if not joshua_model.test_running(ensemble, seed, sanity):
+            if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
                 log("<cancelled>")
                 retcode = -1
                 output = b""

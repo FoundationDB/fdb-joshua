@@ -18,9 +18,7 @@
 # limitations under the License.
 #
 
-from collections import OrderedDict
-from itertools import islice
-from typing import Dict, Tuple, List, Any
+from typing import Dict, Tuple, List
 
 import fdb
 fdb.api_version(520)
@@ -590,65 +588,46 @@ def _get_snap_counter(tr : fdb.Transaction, ensemble_id : str, counter : str) ->
         return struct.unpack("<Q", b'' + value)[0]
 
 
-class _EnsembleProgressTracker:
-    def __init__(self):
-        # map from ensemble_id to last known ended count and the most recent time we
-        # observed the count change. Ordered by last updated.
-        self._last_ensemble_progress : OrderedDict[str, Tuple[int, float]] = OrderedDict()
-
-    def try_start(self, ensemble_id : str, tr : fdb.Transaction) -> bool:
-        """
-        See should_run_ensemble
-        """
-        props = _get_ensemble_properties(tr, ensemble_id, snapshot=True)
-        started = props.get("started", 0)
-        ended = props.get("ended", 0)
-        max_runs = props.get("max_runs", 0)
-        timeout = props.get("timeout", 5400)
-        # max_runs == 0 means run forever
-        if max_runs > 0 and started >= max_runs:
-            if ensemble_id in self._last_ensemble_progress:
-                (last_ended, last_time) = self._last_ensemble_progress[ensemble_id]
-                if ended > last_ended:
-                    self._last_ensemble_progress[ensemble_id] = ended, time.time()
-                    self._last_ensemble_progress.move_to_end(ensemble_id)
-                    return False
-                elif time.time() - last_time < timeout + 10: # 10 second buffer to give the other agent a chance to end their run
-                    # Don't start it yet - maybe the other agent hasn't timed out yet
-                    time.sleep(1) # Avoid polling too frequently
-                    return False
-                else:
-                    # started >= max_runs, but ended hasn't increased in more
-                    # than timeout + 10 seconds. Start a run in case an agent
-                    # died after starting a run but before finishing it.
-                    return True
-            else:
-                # We don't know whether or not another agent could have timed out. Start tracking it and don't start a new run.
-                self._last_ensemble_progress[ensemble_id] = ended, time.time()
-                # We inserted an ensemble into _last_ensemble_progress, so try to limit memory usage by expiring one.
-                oldest_list = list(islice(self._last_ensemble_progress.keys(), 1))
-                for oldest in oldest_list:
-                    if tr[dir_active[oldest]] == None:
-                        del self._last_ensemble_progress[oldest]
-                return False
-        else:
-            # started < max_runs
-            return True
-
-
-_ensemble_progress_tracker = _EnsembleProgressTracker()
+def _get_seeds_and_heartbeats(ensemble_id : str, tr : fdb.Transaction) -> List[Tuple[int, float]]:
+    result = []
+    for k, v in tr.snapshot[dir_ensemble_incomplete[ensemble_id]["heartbeat"].range()]:
+        seed = dir_ensemble_incomplete[ensemble_id]["heartbeat"].unpack(k)
+        heartbeat, = fdb.tuple.unpack(v)
+        result.append((seed, heartbeat))
+    return result
 
 
 @transactional
-def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str):
+def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str) -> bool:
     """
     Return True if this agent should start a run for this ensemble. The
     policy tries not to overshoot max_runs by too much, but also accounts
     for the possibility that agents might die.
     """
-    global _ensemble_progress_tracker
-    return _ensemble_progress_tracker.try_start(ensemble_id, tr)
-
+    props = _get_ensemble_properties(tr, ensemble_id, snapshot=True)
+    started = props.get("started", 0)
+    max_runs = props.get("max_runs", 0)
+    # max_runs == 0 means run forever
+    if max_runs > 0 and started >= max_runs:
+        current_time = time.time()
+        max_seed = None
+        max_heartbeat_age = None
+        for seed, heartbeat in _get_seeds_and_heartbeats(ensemble_id, tr):
+            if max_seed is None or current_time - heartbeat > max_heartbeat_age:
+                max_seed = seed
+                max_heartbeat_age = current_time - heartbeat
+        if max_heartbeat_age is None:
+            # No other agents are running a test for this ensemble (is this possible?)
+            return True
+        if max_heartbeat_age > 10:
+            # "Kill" this seed for the presumed dead agent
+            del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
+            del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
+            return True
+        return False
+    else:
+        # max_runs == 0 or started < max_runs
+        return True
 
 @transactional
 def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
@@ -664,14 +643,21 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
 
     _increment(tr, ensemble_id, 'started')
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid
+    current_time = time.time()
+    tr[dir_ensemble_incomplete[ensemble_id][seed]["began_at"]] = fdb.tuple.pack((current_time,))
+    tr[dir_ensemble_incomplete[ensemble_id][seed]["hostname"]] = fdb.tuple.pack((get_hostname(),))
+    tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]] = fdb.tuple.pack((current_time,))
     return True
 
 
 @transactional
-def test_running(tr, ensemble_id, seed, sanity=False):
+def heartbeat_and_check_running(tr, ensemble_id, seed, sanity=False):
     dir, _ = get_dir_changes(sanity)
-    return tr[dir[ensemble_id]] != None and tr[
+    result = tr[dir[ensemble_id]] != None and tr[
         dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
+    if result:
+        tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]] = fdb.tuple.pack(time.time())
+    return result
 
 
 @transactional
@@ -689,7 +675,8 @@ def _insert_results(tr,
     if tr[dir_ensemble_incomplete[ensemble_id][seed]] == None:
         # Test already completed
         return False
-    del tr[dir_ensemble_incomplete[ensemble_id][seed]]
+    del tr[dir_ensemble_incomplete[ensemble_id][seed].range()]
+    del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]]
 
     _increment(tr, ensemble_id, 'ended')
 
