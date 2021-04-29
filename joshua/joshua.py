@@ -87,7 +87,7 @@ def get_active_ensembles(stopped, sanity=False, username=None):
     return ensemble_list
 
 
-def list_active_ensembles(stopped, sanity=False, username=None, **args):
+def list_active_ensembles(stopped, sanity=False, username=None, show_in_progress=None, **args):
     ensemble_list = get_active_ensembles(stopped, sanity, username)
     if stopped:
         print('All ensembles:')
@@ -97,7 +97,20 @@ def list_active_ensembles(stopped, sanity=False, username=None, **args):
         print('Currently active ensembles:')
     for e, props in ensemble_list:
         print(format_ensemble(e, props))
+        print('\tCurrently active tests:')
+        if show_in_progress:
+            for props in joshua_model.show_in_progress(e):
+                print('\t{}'.format(' '.join('{}={}'.format(k, v) for k, v in sorted(props.items()))))
+
     return ensemble_list
+
+
+def show_in_progress(ensemble=None, sanity=False, username=None, **kwargs):
+    if ensemble is None:
+        ensemble = [e for e, _ in joshua_model.list_active_ensembles()]
+    print(ensemble)
+    for e in ensemble:
+        print(e, joshua_model.show_in_progress(ensemble))
 
 
 def start_ensemble(tarball,
@@ -445,6 +458,10 @@ if __name__ == "__main__":
     parser_list.add_argument('--username',
                              metavar='user',
                              help='username of user who launched the test',
+                             default=None)
+    parser_list.add_argument('--show-in-progress',
+                             action='store_true',
+                             help='If set, show the progress of currently running tests',
                              default=None)
     parser_list.set_defaults(cmd=list_active_ensembles)
 
