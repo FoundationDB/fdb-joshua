@@ -324,3 +324,6 @@ def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
     joshua_model.delete_ensemble(ensemble_id)
     time.sleep(1)  # Wait for long enough that agents timeout
     assert len(joshua_model.list_all_ensembles()) == 0
+
+    for agent in agents:
+        agent.join()
