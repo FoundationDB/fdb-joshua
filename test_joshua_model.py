@@ -31,13 +31,13 @@ def getFreePort():
     return result
 
 
-def empty_ensemble_factory(tmp_path, succeed):
+def empty_ensemble_factory(tmp_path, script_contents):
     """
-    Returns a filename whose contents is a tarball containing a no-op joshua_test and joshua_timeout
+    Returns a filename whose contents is a tarball containing a joshua_test (with script_contents) and joshua_timeout
     """
     ensemble_file_name = os.path.join(tmp_path, "ensemble.tar.gz")
     ensemble = tarfile.open(ensemble_file_name, "w:gz")
-    script = "#!/bin/bash\n{}".format("true" if succeed else "false").encode("utf-8")
+    script = "#!/bin/bash\n{}".format(script_contents).encode("utf-8")
     joshua_test = tarfile.TarInfo("joshua_test")
     joshua_test.mode = 0o755
     joshua_test.size = len(script)
@@ -55,7 +55,15 @@ def empty_ensemble(tmp_path):
     """
     Returns a filename whose contents is a tarball containing a passing joshua_test and joshua_timeout
     """
-    yield empty_ensemble_factory(tmp_path, True)
+    yield empty_ensemble_factory(tmp_path, "true")
+
+
+@pytest.fixture
+def empty_ensemble_timeout(tmp_path):
+    """
+    Returns a filename whose contents is a tarball containing a joshua_test that will hang forever
+    """
+    yield empty_ensemble_factory(tmp_path, "sleep 100000")
 
 
 @pytest.fixture
@@ -63,7 +71,7 @@ def empty_ensemble_fail(tmp_path):
     """
     Returns a filename whose contents is a tarball containing a failing joshua_test and joshua_timeout
     """
-    yield empty_ensemble_factory(tmp_path, False)
+    yield empty_ensemble_factory(tmp_path, "false")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -293,3 +301,26 @@ def test_ensemble_fails(tmp_path, empty_ensemble_fail):
 
     assert get_passes(joshua_model.db, ensemble_id) == 0
     assert get_fails(joshua_model.db, ensemble_id) >= 1
+
+
+def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 10, "timeout": 1}, open(empty_ensemble_timeout, "rb")
+    )
+    agents = []
+    for rank in range(10):
+        agent = threading.Thread(
+            target=joshua_agent.agent,
+            args=(),
+            kwargs={
+                "work_dir": os.path.join(tmp_path, str(rank)),
+                "agent_idle_timeout": 1,
+            },
+        )
+        agent.setDaemon(True)
+        agent.start()
+        agents.append(agent)
+    time.sleep(0.5)  # Give the agents some time to start
+    joshua_model.delete_ensemble(ensemble_id)
+    time.sleep(1)  # Wait for long enough that agents timeout
+    assert len(joshua_model.list_all_ensembles()) == 0
