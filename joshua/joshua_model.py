@@ -695,6 +695,10 @@ def _insert_results(tr,
                     duration=0):
     dir, _ = get_dir_changes(sanity)
 
+    if tr[dir[ensemble_id]] == None:
+        # Don't insert any more results for stopped ensembles
+        return False
+
     if tr[dir_ensemble_incomplete[ensemble_id][seed]] == None:
         # Test already completed
         return False
@@ -702,10 +706,6 @@ def _insert_results(tr,
     del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]]
 
     _increment(tr, ensemble_id, 'ended')
-
-    if tr[dir[ensemble_id]] == None:
-        # Don't insert any more results for stopped ensembles
-        return False
 
     if result_code:
         _increment(tr, ensemble_id, 'fail')
