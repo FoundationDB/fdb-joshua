@@ -551,7 +551,7 @@ class AsyncEnsemble:
             jobs_fail += 1
         job_mutex.release()
 
-        self._result = retcode
+        self._retcode = retcode
 
 
 def run_ensemble(
@@ -586,6 +586,7 @@ def run_ensemble(
             if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
                 asyncEnsemble.cancel()
         else:
+            assert asyncEnsemble._retcode is not None
             return asyncEnsemble._retcode
 
 
