@@ -589,40 +589,6 @@ def run_ensemble(
             return asyncEnsemble._retcode
 
 
-def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeout_command_timeout=60):
-    seed = random.getrandbits(63)
-
-    if not joshua_model.try_starting_test(ensemble, seed, sanity):
-        log("<job stopped>")
-        return -3
-
-    # At this point we've acquired a run of this ensemble in the sense that we
-    # have incremented `started`, so we need to heartbeat until we increment
-    # `ended` or get stopped
-
-    asyncEnsemble = AsyncEnsemble()
-    asyncEnsembleThread = threading.Thread(
-        target=asyncEnsemble.run_ensemble,
-        args=(ensemble, seed),
-        kwargs={
-            "save_on": save_on,
-            "sanity": sanity,
-            "work_dir": work_dir,
-            "timeout_command_timeout": timeout_command_timeout,
-        },
-    )
-    asyncEnsembleThread.setDaemon(True)
-    asyncEnsembleThread.start()
-    while True:
-        asyncEnsembleThread.join(timeout=1) # heartbeating frequency
-        if asyncEnsembleThread.is_alive():
-            if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
-                asyncEnsemble.cancel()
-        else:
-            return asyncEnsemble._retcode
-
-
-
 def agent(agent_timeout=None,
           save_on='FAILURE',
           sanity_period=None,
