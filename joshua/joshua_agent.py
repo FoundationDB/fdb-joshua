@@ -331,177 +331,288 @@ def cleanup(ensemble, where, seed, retcode=0, save_on='FAILURE', work_dir=None):
     clear_directory(os.path.join(where, 'tmp'))
 
 
-def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeout_command_timeout=60):
-    """
-    Actually run the ensemble's test script.
-    :param ensemble: ensemble ID
-    :param save_on:
-    :param sanity:
-    :return: 0 for success
-    """
-    global jobs_pass, jobs_fail
-    if not work_dir:
-        raise JoshuaError(
-            'Unable to run function since work_dir is not defined. Exiting. (CWD='
-            + os.getcwd() + ') (PATH = ' + os.getenv('PATH') + ')')
+class AsyncEnsemble:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._m_cancelled = False  # protected by lock
+        self._retcode = None  # Owned by run_ensemble thread until joined, then owned by calling thread.
 
-    # Get its properties
-    properties = joshua_model.get_ensemble_properties(ensemble)
-    compressed = properties.get('compressed', False)
-    command = properties.get('test_command', './joshua_test')
-    timeout_command = properties.get('timeout_command', './joshua_timeout')
-    timeout_time = properties.get('timeout', None)
-    fail_fast = properties.get('fail_fast', 0)
-    max_runs = properties.get('max_runs', 0)
+    def cancel(self):
+        with self._lock:
+            self._m_cancelled = True
 
+    def _cancelled(self):
+        with self._lock:
+            return self._m_cancelled
+
+    def run_ensemble(
+        self,
+        ensemble,
+        seed,
+        save_on="FAILURE",
+        sanity=False,
+        work_dir=None,
+        timeout_command_timeout=60,
+    ):
+        """
+        Actually run the ensemble's test script.
+        :param ensemble: ensemble ID
+        :param save_on:
+        :param sanity:
+        :return: 0 for success
+        """
+        global jobs_pass, jobs_fail
+        if not work_dir:
+            raise JoshuaError(
+                "Unable to run function since work_dir is not defined. Exiting. (CWD="
+                + os.getcwd()
+                + ") (PATH = "
+                + os.getenv("PATH")
+                + ")"
+            )
+
+        # Get its properties
+        properties = joshua_model.get_ensemble_properties(ensemble)
+        compressed = properties.get("compressed", False)
+        command = properties.get("test_command", "./joshua_test")
+        timeout_command = properties.get("timeout_command", "./joshua_timeout")
+        timeout_time = properties.get("timeout", None)
+        fail_fast = properties.get("fail_fast", 0)
+        max_runs = properties.get("max_runs", 0)
+
+        env = process_handling.mark_environment(os.environ)
+        # Copy any env=NAME1=VALUE:NAME2=VALUE into the environment
+        # We do this first so that it can't overwrite anything below.
+        if "env" in properties and properties["env"]:
+            env_settings = [x.split("=", 1) for x in properties["env"].split(":")]
+            for k, v in env_settings:
+                env[k] = v
+        for k, v in properties.items():
+            if k == "env":
+                continue
+            env["JOSHUA_" + k.upper()] = str(v)
+        env["JOSHUA_SEED"] = str(seed).rstrip("L")
+        # process_handling.ensure_path(env)
+
+        #    print('{} Running ensemble in dir: {}'.format(threading.current_thread().name, work_dir),file=getFileHandle())
+
+        # Ensure its local state exists
+        where = ensemble_dir(ensemble, basepath=work_dir)
+        ensure_state(ensemble, where, properties, basepath=work_dir)
+
+        # Set environment variable to use the created temporary directory as its temporary directory.
+        env["TMP"] = os.path.join(where, "tmp")
+
+        log("{} {} {}".format(ensemble, seed, command))
+
+        # Run the test and log output
+        process = subprocess.Popen(
+            command,
+            cwd=where,
+            env=env,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        start_time = time.time()
+        if timeout_time:
+            timeout_time = float(timeout_time) + start_time
+
+        output = b""
+        retcode = 0
+
+        while True:
+            getFileHandle().flush()
+            try:
+                output, _ = process.communicate(timeout=1)
+                retcode = process.poll()
+                log("exit code: {}".format(retcode))
+                # output = output.decode('utf-8')
+
+                break
+            except subprocess.TimeoutExpired:
+                if self._cancelled():
+                    log("<cancelled>")
+                    retcode = -1
+                    output = b""
+                    break
+                if timeout_time and time.time() > timeout_time:
+                    log("<timed out>")
+                    retcode = -2
+                    output = b""
+                    break
+                getFileHandle().write(".")
+
+        duration = max(1, time.time() - start_time)
+        done_timestamp = joshua_model.format_datetime(datetime.now(timezone.utc))
+
+        if retcode == -2 and time.time() > timeout_time:
+            if os.path.isfile(os.path.join(where, timeout_command)):
+                log("Summarizing timeout...")
+                try:
+                    process = subprocess.Popen(
+                        timeout_command,
+                        cwd=where,
+                        env=env,
+                        shell=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    output, _ = process.communicate(timeout=timeout_command_timeout)
+                    log("done")
+                except Exception as e:
+                    log("failed")
+                    output = joshua_model.wrap_message(
+                        {
+                            "Error": "JoshuaTimeout",
+                            "TimeoutCommandRun": "true",
+                            "PythonError": str(e),
+                            "PythonStack": traceback.format_exc(),
+                            "Severity": "40",
+                            "Ensemble": str(ensemble),
+                            "Seed": str(seed),
+                            "Sanity": str(sanity),
+                            "TimeoutSeconds": str(timeout_command_timeout),
+                        }
+                    )
+
+            else:
+                output = joshua_model.wrap_message(
+                    {
+                        "Error": "JoshuaTimeout",
+                        "TimeoutCommandRun": "false",
+                        "Severity": "40",
+                    }
+                )
+
+        # Write the output to the tmp directory so that it is picked up when we save (if we do so).
+        if should_save(retcode, save_on):
+            try:
+                to_write = os.path.join(where, "tmp", "console.log")
+
+                i = 0
+                while os.path.exists(to_write):
+                    to_write = os.path.join(where, "tmp", "console-{0}.log".format(i))
+                    i += 1
+
+                with open(to_write, "wb") as fout:
+                    fout.write(output)
+
+            except OSError as e:
+                # Could not write. Not fatal. Log and move on.
+                log("Could not write console output.")
+                log(traceback.format_exc())
+                log("Moving on...")
+
+        cleanup(ensemble, where, seed, retcode, save_on, work_dir=work_dir)
+
+        try:
+            joshua_model.insert_results(
+                ensemble,
+                seed,
+                retcode,
+                output,
+                compressed,
+                sanity,
+                fail_fast,
+                max_runs,
+                duration,
+            )
+        except joshua_model.FDBError as e:
+            # Since insert_results is wrapped by the @fdb.transactional, e is non-retryable.
+            joshua_model.insert_results(
+                ensemble,
+                seed,
+                e.code,
+                bytes(joshua_model.wrap_error(e.description), encoding="utf-8"),
+                compressed,
+                sanity,
+                fail_fast,
+                max_runs,
+                duration,
+            )
+
+        # Add the result to the job queue
+        job_queue.put(fdb.tuple.pack((retcode, done_timestamp)))
+
+        # Update the job counts
+        job_mutex.acquire()
+        if retcode == 0:
+            jobs_pass += 1
+        else:
+            jobs_fail += 1
+        job_mutex.release()
+
+        self._result = retcode
+
+
+def run_ensemble(
+    ensemble, save_on="FAILURE", sanity=False, work_dir=None, timeout_command_timeout=60
+):
     seed = random.getrandbits(63)
-    env = process_handling.mark_environment(os.environ)
-    # Copy any env=NAME1=VALUE:NAME2=VALUE into the environment
-    # We do this first so that it can't overwrite anything below.
-    if 'env' in properties and properties['env']:
-        env_settings = [x.split('=', 1) for x in properties['env'].split(':')]
-        for k, v in env_settings:
-          env[k] = v
-    for k, v in properties.items():
-        if k == 'env':
-            continue
-        env["JOSHUA_" + k.upper()] = str(v)
-    env["JOSHUA_SEED"] = str(seed).rstrip("L")
-    # process_handling.ensure_path(env)
-
-    #    print('{} Running ensemble in dir: {}'.format(threading.current_thread().name, work_dir),file=getFileHandle())
-
-    # Ensure its local state exists
-    where = ensemble_dir(ensemble, basepath=work_dir)
-    ensure_state(ensemble, where, properties, basepath=work_dir)
-
-    # Set environment variable to use the created temporary directory as its temporary directory.
-    env["TMP"] = os.path.join(where, "tmp")
-
-    log('{} {} {}'.format(ensemble, seed, command))
 
     if not joshua_model.try_starting_test(ensemble, seed, sanity):
         log("<job stopped>")
         return -3
 
-    # Run the test and log output
-    process = subprocess.Popen(command,
-                               cwd=where,
-                               env=env,
-                               shell=True,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
-    start_time = time.time()
-    if timeout_time:
-        timeout_time = float(timeout_time) + start_time
+    # At this point we've acquired a run of this ensemble in the sense that we
+    # have incremented `started`, so we need to heartbeat until we increment
+    # `ended` or get stopped
 
-    output = b""
-    retcode = 0
-
+    asyncEnsemble = AsyncEnsemble()
+    asyncEnsembleThread = threading.Thread(
+        target=asyncEnsemble.run_ensemble,
+        args=(ensemble, seed),
+        kwargs={
+            "save_on": save_on,
+            "sanity": sanity,
+            "work_dir": work_dir,
+            "timeout_command_timeout": timeout_command_timeout,
+        },
+    )
+    asyncEnsembleThread.setDaemon(True)
+    asyncEnsembleThread.start()
     while True:
-        getFileHandle().flush()
-        try:
-            output, _ = process.communicate(timeout=1)
-            retcode = process.poll()
-            log('exit code: {}'.format(retcode))
-            #output = output.decode('utf-8')
-
-            break
-        except subprocess.TimeoutExpired:
-            # The "timeout" is just an opportunity to poll the database to see if this ensemble has been stopped
-            # Possibly in the future we will implement an actual timeout option
+        asyncEnsembleThread.join(timeout=1)  # heartbeating frequency
+        if asyncEnsembleThread.is_alive():
             if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
-                log("<cancelled>")
-                retcode = -1
-                output = b""
-                break
-            if timeout_time and time.time() > timeout_time:
-                log("<timed out>")
-                retcode = -2
-                output = b""
-                break
-            getFileHandle().write('.')
-
-    duration = max(1, time.time() - start_time)
-    done_timestamp = joshua_model.format_datetime(datetime.now(timezone.utc))
-
-    if retcode == -2 and time.time() > timeout_time:
-        if os.path.isfile(os.path.join(where, timeout_command)):
-            log('Summarizing timeout...')
-            try:
-                process = subprocess.Popen(timeout_command,
-                                           cwd=where,
-                                           env=env,
-                                           shell=True,
-                                           stdout=subprocess.PIPE,
-                                           stderr=subprocess.PIPE)
-                output, _ = process.communicate(timeout=timeout_command_timeout)
-                log('done')
-            except Exception as e:
-                log('failed')
-                output = joshua_model.wrap_message({
-                    'Error': 'JoshuaTimeout',
-                    'TimeoutCommandRun': 'true',
-                    'PythonError': str(e),
-                    'PythonStack': traceback.format_exc(),
-                    'Severity': '40',
-                    'Ensemble': str(ensemble),
-                    'Seed': str(seed),
-                    'Sanity': str(sanity),
-                    'TimeoutSeconds': str(timeout_command_timeout)
-                })
-
+                asyncEnsemble.cancel()
         else:
-            output = joshua_model.wrap_message({
-                'Error': 'JoshuaTimeout',
-                'TimeoutCommandRun': 'false',
-                'Severity': '40'
-            })
+            return asyncEnsemble._retcode
 
-    # Write the output to the tmp directory so that it is picked up when we save (if we do so).
-    if should_save(retcode, save_on):
-        try:
-            to_write = os.path.join(where, 'tmp', 'console.log')
 
-            i = 0
-            while os.path.exists(to_write):
-                to_write = os.path.join(where, 'tmp',
-                                        'console-{0}.log'.format(i))
-                i += 1
+def run_ensemble(ensemble, save_on='FAILURE', sanity=False, work_dir=None, timeout_command_timeout=60):
+    seed = random.getrandbits(63)
 
-            with open(to_write, 'wb') as fout:
-                fout.write(output)
+    if not joshua_model.try_starting_test(ensemble, seed, sanity):
+        log("<job stopped>")
+        return -3
 
-        except OSError as e:
-            # Could not write. Not fatal. Log and move on.
-            log('Could not write console output.')
-            log(traceback.format_exc())
-            log('Moving on...')
+    # At this point we've acquired a run of this ensemble in the sense that we
+    # have incremented `started`, so we need to heartbeat until we increment
+    # `ended` or get stopped
 
-    cleanup(ensemble, where, seed, retcode, save_on, work_dir=work_dir)
+    asyncEnsemble = AsyncEnsemble()
+    asyncEnsembleThread = threading.Thread(
+        target=asyncEnsemble.run_ensemble,
+        args=(ensemble, seed),
+        kwargs={
+            "save_on": save_on,
+            "sanity": sanity,
+            "work_dir": work_dir,
+            "timeout_command_timeout": timeout_command_timeout,
+        },
+    )
+    asyncEnsembleThread.setDaemon(True)
+    asyncEnsembleThread.start()
+    while True:
+        asyncEnsembleThread.join(timeout=1) # heartbeating frequency
+        if asyncEnsembleThread.is_alive():
+            if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
+                asyncEnsemble.cancel()
+        else:
+            return asyncEnsemble._retcode
 
-    try:
-        joshua_model.insert_results(ensemble, seed, retcode, output, compressed,
-                                    sanity, fail_fast, max_runs, duration)
-    except joshua_model.FDBError as e:
-        # Since insert_results is wrapped by the @fdb.transactional, e is non-retryable.
-        joshua_model.insert_results(
-            ensemble, seed, e.code,
-            bytes(joshua_model.wrap_error(e.description), encoding='utf-8'),
-            compressed, sanity, fail_fast, max_runs, duration)
-
-    # Add the result to the job queue
-    job_queue.put(fdb.tuple.pack((retcode, done_timestamp)))
-
-    # Update the job counts
-    job_mutex.acquire()
-    if retcode == 0:
-        jobs_pass += 1
-    else:
-        jobs_fail += 1
-    job_mutex.release()
-
-    return retcode
 
 
 def agent(agent_timeout=None,
