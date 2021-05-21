@@ -151,8 +151,16 @@ def check_archive_path(name):
         return False
     return True
 
+def ensure_state_test_delay():
+    """
+    In testing this can be overriden to introduce a delay to simulate a large
+    ensemble that takes a long time to download.
+    """
+    pass
+
 
 def ensure_state(ensemble_id, where, properties, basepath=None):
+    ensure_state_test_delay() # noop outside of testing
     if not basepath:
         raise JoshuaError(
             'Unable to run function since basepath is not defined. Exiting. (CWD='
