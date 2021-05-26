@@ -25,7 +25,8 @@ RUN yum repolist && \
         rh-python38-python-devel \
         rh-python38-python-pip \
         rh-ruby27 \
-        rh-ruby27-ruby-devel && \
+        rh-ruby27-ruby-devel \
+        libatomic && \
     source /opt/rh/devtoolset-8/enable && \
     source /opt/rh/rh-python38/enable && \
     source /opt/rh/rh-ruby27/enable && \
