@@ -327,3 +327,75 @@ def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
 
     for agent in agents:
         agent.join()
+
+
+class ThreadSafeCounter:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.counter = 0
+
+    def increment(self):
+        with self.lock:
+            self.counter += 1
+
+    def get(self):
+        with self.lock:
+            return self.counter
+
+
+def test_two_agents_large_ensemble(monkeypatch, tmp_path, empty_ensemble):
+    """
+    :monkeypatch: https://docs.pytest.org/en/stable/monkeypatch.html
+    :tmp_path: https://docs.pytest.org/en/stable/tmpdir.html
+    """
+
+    # Make downloading an ensemble take an extra second, and increment
+    # downloads_started at the beginning of downloading
+    downloads_started = ThreadSafeCounter()
+
+    def ensure_state_test_delay():
+        downloads_started.increment()
+        time.sleep(1)
+
+    monkeypatch.setattr(
+        joshua_agent, "ensure_state_test_delay", ensure_state_test_delay
+    )
+
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    assert len(joshua_model.list_active_ensembles()) == 0
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1, "timeout": 1}, open(empty_ensemble, "rb")
+    )
+
+    agents = []
+    for rank in range(2):
+        agent = threading.Thread(
+            target=joshua_agent.agent,
+            args=(),
+            kwargs={
+                "work_dir": os.path.join(tmp_path, str(rank)),
+                "agent_idle_timeout": 1,
+            },
+        )
+        agent.setDaemon(True)
+        agent.start()
+        agents.append(agent)
+        while True:
+            # Wait until the first agent has begun downloading before starting the second agent
+            if downloads_started.get() > 0:
+                break
+            time.sleep(0.01)
+
+    joshua.tail_ensemble(ensemble_id, username="joshua")
+
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    assert get_started(joshua_model.db) == 1
+
+    for agent in agents:
+        agent.join()
