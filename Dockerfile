@@ -34,6 +34,9 @@ RUN yum repolist && \
         python-dateutil \
         subprocess32 \
         psutil && \
+    python3.6 -m pip install \
+        foundationdb \
+        hypothesis && \
     gem install ffi --platform=ruby && \
     groupadd -r joshua -g 4060 && \
     useradd \
