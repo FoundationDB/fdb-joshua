@@ -20,7 +20,7 @@
 
 from collections import defaultdict
 
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 import fdb
 fdb.api_version(520)
 import fdb.tuple
@@ -598,6 +598,13 @@ def _get_seeds_and_heartbeats(ensemble_id : str, tr : fdb.Transaction) -> List[T
     return result
 
 
+def _get_hostname(ensemble_id : str, seed : int, tr : fdb.Transaction) -> Optional[str]:
+    v = tr.snapshot[dir_ensemble_incomplete[ensemble_id][seed]["hostname"]]
+    if v != None:
+        return fdb.tuple.unpack(v)[0]
+    return None
+
+
 @transactional
 def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str) -> bool:
     """
@@ -621,7 +628,12 @@ def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str) -> bool:
             # No other agents are running a test for this ensemble (is this possible?)
             return True
         if max_heartbeat_age > 10:
-            # "Kill" this seed for the presumed dead agent
+            print("Agent {} presumed dead. Attempting to steal its work.".format(
+                _get_hostname(ensemble_id, max_seed, tr)))
+
+            # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
+            # We only want one agent to succeed in taking over for the dead agent's run/seed.
+            tr.add_read_conflict_key(dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed])
             del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
             del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
             return True
