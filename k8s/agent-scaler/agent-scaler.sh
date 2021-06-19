@@ -23,7 +23,7 @@ while true; do
     done
 
     # get the current ensembles
-    num_ensembles=$(python3 /tools/ensemble_count.py)
+    num_ensembles=$(python3 /tools/fdb_util.py get_ensemble_count)
 
     # get the current jobs
     num_jobs=$(kubectl get jobs -n "${namespace}" | wc -l)
@@ -45,6 +45,7 @@ while true; do
             i=0
             while [ $i -lt "${batch_size}" ]; do
                 export JOBNAME_SUFFIX="${current_timestamp}-${idx}"
+                AGENT_TAG=$(python3 /tools/fdb_util.py get_agent_tag)
                 echo "=== Adding $JOBNAME_SUFFIX ==="
                 envsubst </template/joshua-agent.yaml.template >>/tmp/joshua-agent.yaml
                 # add a separator
