@@ -66,6 +66,8 @@ INSTANCE_ID_ENV_VAR = 'PLATFORM_SHORT_INSTANCE_ID'
 OLD_INSTANCE_ID_ENV_VAR = 'SHORT_TASK_ID'
 HOSTNAME_ENV_VAR = 'HOSTNAME'
 
+JOSHUA_AGENT_IMAGE_TAG_KEY = 'JOSHUA_AGENT_IMAGE_TAG'
+
 db = None
 dir_top = None
 dir_ensembles = None
@@ -81,6 +83,7 @@ dir_ensemble_results_large = None
 dir_active_changes = None
 dir_sanity_changes = None
 dir_failures = None
+dir_agent_config = None
 
 
 def open(cluster_file=None, dir_path=("joshua",)):
@@ -102,6 +105,7 @@ def open(cluster_file=None, dir_path=("joshua",)):
     dir_ensemble_results_large = dir_ensemble_results.create_or_open(
         db, "large")
     dir_failures = dir_top.create_or_open(db, "failures")
+    dir_agent_config = dir_top.create_or_open(db, "agent_config")
 
     dir_active_changes = dir_active
     dir_sanity_changes = dir_sanity
@@ -901,3 +905,13 @@ def get_agent_failures(tr, time_start=None, time_end=None):
         failures.append((info, msg))
 
     return failures
+
+
+@transactional
+def get_agent_image_tag(tr):
+    return tr[dir_agent_config[JOSHUA_AGENT_IMAGE_TAG_KEY]]
+
+
+@transactional
+def set_agent_image_tag(tr, agent_image_tag):
+    tr[dir_agent_config[JOSHUA_AGENT_IMAGE_TAG_KEY]] = agent_image_tag
