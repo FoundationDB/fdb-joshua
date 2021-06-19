@@ -24,6 +24,10 @@ import argparse
 
 
 def queue_size(**args):
+    """
+    Returns the number of ensembles that have not finished running.
+    """
+
     ensemble_list = joshua_model.list_active_ensembles()
     desired_count = 0
     for e, props in ensemble_list:
@@ -36,6 +40,14 @@ def queue_size(**args):
         if max_runs - ended >= 0:
             desired_count += max_runs - ended
     print(desired_count, end='')
+
+
+def get_agent_image_tag(**args):
+    """
+    Returns the joshua agent image tag.
+    """
+
+    return joshua_model.get_agent_image_tag()
 
 
 if __name__ == "__main__":
@@ -53,6 +65,18 @@ if __name__ == "__main__":
         default=('joshua',),
         help='top-level directory path in which joshua operates')
 
+    subparsers = parser.add_subparsers(help='sub-command help')
+    parser_count = subparsers.add_parser(
+        'get_ensemble_count',
+        help='get number of remaining ensembles'
+    )
+    parser_count.set_defaults(cmd=queue_size)
+
+    parser_tag = subparsers.add_parser(
+        'get_agent_tag',
+        help='get joshua agent image tag'
+    )
+    parser_tag.set_defaults(cmd=get_agent_image_tag)
+
     arguments = parser.parse_args()
     joshua_model.open(arguments.cluster_file, dir_path=arguments.dir_path)
-    queue_size()
