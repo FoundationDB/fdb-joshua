@@ -592,7 +592,7 @@ def _get_snap_counter(tr : fdb.Transaction, ensemble_id : str, counter : str) ->
 def _get_seeds_and_heartbeats(ensemble_id : str, tr : fdb.Transaction) -> List[Tuple[int, float]]:
     result = []
     for k, v in tr.snapshot[dir_ensemble_incomplete[ensemble_id]["heartbeat"].range()]:
-        seed = dir_ensemble_incomplete[ensemble_id]["heartbeat"].unpack(k)
+        seed, = dir_ensemble_incomplete[ensemble_id]["heartbeat"].unpack(k)
         heartbeat, = fdb.tuple.unpack(v)
         result.append((seed, heartbeat))
     return result
@@ -621,6 +621,7 @@ def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str) -> bool:
         max_seed = None
         max_heartbeat_age = None
         for seed, heartbeat in _get_seeds_and_heartbeats(ensemble_id, tr):
+            assert type(seed) == int
             if max_seed is None or current_time - heartbeat > max_heartbeat_age:
                 max_seed = seed
                 max_heartbeat_age = current_time - heartbeat
