@@ -37,6 +37,7 @@ while true; do
             new_jobs=$((max_jobs - num_jobs))
         fi
 
+        AGENT_TAG=$(python3 /tools/fdb_util.py get_agent_tag)
         idx=0
         while [ $idx -lt ${new_jobs} ]; do
             if [ -e /tmp/joshua-agent.yaml ]; then
@@ -45,7 +46,6 @@ while true; do
             i=0
             while [ $i -lt "${batch_size}" ]; do
                 export JOBNAME_SUFFIX="${current_timestamp}-${idx}"
-                AGENT_TAG=$(python3 /tools/fdb_util.py get_agent_tag)
                 echo "=== Adding $JOBNAME_SUFFIX ==="
                 envsubst </template/joshua-agent.yaml.template >>/tmp/joshua-agent.yaml
                 # add a separator
