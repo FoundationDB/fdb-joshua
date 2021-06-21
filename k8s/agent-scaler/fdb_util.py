@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# ensemble_count.py
+# fdb_util.py
 #
 # This source file is part of the FoundationDB open source project
 #
@@ -33,13 +33,13 @@ def queue_size(**args):
     for e, props in ensemble_list:
         max_runs = 0
         ended = 0
-        if 'max_runs' in props:
-            max_runs = props['max_runs']
-        if 'ended' in props:
-            ended = props['ended']
+        if "max_runs" in props:
+            max_runs = props["max_runs"]
+        if "ended" in props:
+            ended = props["ended"]
         if max_runs - ended >= 0:
             desired_count += max_runs - ended
-    print(desired_count, end='')
+    print(desired_count, end="")
 
 
 def get_agent_image_tag(**args):
@@ -51,30 +51,30 @@ def get_agent_image_tag(**args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description='How about a nice game of chess?')
-    parser.add_argument('-C',
-                        '--cluster-file',
-                        '--cluster_file',
-                        dest="cluster_file",
-                        help="Cluster file for Joshua database")
+    parser = argparse.ArgumentParser(description="How about a nice game of chess?")
     parser.add_argument(
-        '-D',
-        '--dir-path',
-        nargs='+',
-        default=('joshua',),
-        help='top-level directory path in which joshua operates')
+        "-C",
+        "--cluster-file",
+        "--cluster_file",
+        dest="cluster_file",
+        help="Cluster file for Joshua database",
+    )
+    parser.add_argument(
+        "-D",
+        "--dir-path",
+        nargs="+",
+        default=("joshua",),
+        help="top-level directory path in which joshua operates",
+    )
 
-    subparsers = parser.add_subparsers(help='sub-command help')
+    subparsers = parser.add_subparsers(help="sub-command help")
     parser_count = subparsers.add_parser(
-        'get_ensemble_count',
-        help='get number of remaining ensembles'
+        "get_ensemble_count", help="get number of remaining ensembles"
     )
     parser_count.set_defaults(cmd=queue_size)
 
     parser_tag = subparsers.add_parser(
-        'get_agent_tag',
-        help='get joshua agent image tag'
+        "get_agent_tag", help="get joshua agent image tag"
     )
     parser_tag.set_defaults(cmd=get_agent_image_tag)
 
