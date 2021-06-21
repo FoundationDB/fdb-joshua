@@ -25,7 +25,7 @@ import argparse
 
 def queue_size(**args):
     """
-    Returns the number of ensembles that have not finished running.
+    Prints the number of ensembles that have not finished running to be captured by agent-scaler.sh.
     """
 
     ensemble_list = joshua_model.list_active_ensembles()
@@ -44,10 +44,10 @@ def queue_size(**args):
 
 def get_agent_image_tag(**args):
     """
-    Returns the joshua agent image tag.
+    Prints the joshua agent image tag to be captured by agent-scaler.sh
     """
 
-    return joshua_model.get_agent_image_tag()
+    print(joshua_model.get_agent_image_tag().decode("utf-8"))
 
 
 if __name__ == "__main__":
@@ -69,12 +69,12 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(help="sub-command help")
     parser_count = subparsers.add_parser(
-        "get_ensemble_count", help="get number of remaining ensembles"
+        "get_ensemble_count", help="print out number of remaining ensembles"
     )
     parser_count.set_defaults(cmd=queue_size)
 
     parser_tag = subparsers.add_parser(
-        "get_agent_tag", help="get joshua agent image tag"
+        "get_agent_tag", help="print out joshua agent image tag"
     )
     parser_tag.set_defaults(cmd=get_agent_image_tag)
 
