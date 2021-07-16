@@ -74,11 +74,12 @@ RUN source /opt/rh/devtoolset-8/enable && \
 ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
 ARG OLD_TLS_LIBRARY_DIR=/app/deploy/runtime/.tls_5_1/
 ARG FDB_VERSION="6.2.29"
+ARG OLD_FDB_VERSIONS="6.3.15"
 RUN if [ "$(uname -p)" == "x86_64" ]; then \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  ${OLD_TLS_LIBRARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
-        curl -Ls https://www.foundationdb.org/downloads/misc/fdbservers-${FDB_VERSION}.tar.gz | tar -xz -C ${OLD_FDB_BINARY_DIR} && \
+        curl -Ls https://www.foundationdb.org/downloads/misc/fdbservers-${OLD_FDB_VERSIONS}.tar.gz | tar -xz -C ${OLD_FDB_BINARY_DIR} && \
         rm -f ${OLD_FDB_BINARY_DIR}/*.sha256 && \
         chmod +x ${OLD_FDB_BINARY_DIR}/* && \
         curl -Ls https://www.foundationdb.org/downloads/misc/joshua_tls_library.tar.gz | tar -xz -C ${OLD_TLS_LIBRARY_DIR} --strip-components=1 && \
