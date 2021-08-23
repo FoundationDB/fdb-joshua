@@ -830,7 +830,7 @@ def tail_results(ensemble_id, errors_only=False, compressed=True):
             begin_versionstamp = block[-1][0] + 1
             for item in block:
                 text = item[-1] if not compressed else zlib.decompress(item[-1])
-                text = text.decode(encoding='utf-8')
+                text = text.decode(encoding='utf-8', errors='backslashreplace')
                 new_item = item[:-1] + (text,)
 
                 if is_message(text):
