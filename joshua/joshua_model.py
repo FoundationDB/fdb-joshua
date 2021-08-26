@@ -858,7 +858,7 @@ def tail_results(ensemble_id, errors_only=False, compressed=True):
                             decompressed = zlib.decompress(blob_output.getvalue(
                             )) if compressed else blob_output.getvalue()
                             yield item[:-1] + (decompressed.decode(
-                                encoding='utf-8'),)
+                                encoding='utf-8', errors='backslashreplace'),)
                         else:
                             yield new_item
                     except Exception as e:
