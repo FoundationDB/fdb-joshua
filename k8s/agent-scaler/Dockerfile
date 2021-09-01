@@ -12,8 +12,14 @@ RUN yum repolist && \
         gettext \
         rh-python38 \
         rh-python38-python-pip && \
-    curl -Ls https://dl.k8s.io/release/v1.20.0/bin/linux/$(uname -p)/kubectl \
-         -o /usr/local/bin/kubectl && \
+    yum -y clean all --enablerepo='*'
+RUN set -eux; \
+    \
+    case $(uname -m) in \
+            x86_64) curl -Ls https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl;; \
+            aarch64) curl -Ls https://dl.k8s.io/release/v1.20.0/bin/linux/arm64/kubectl -o /usr/local/bin/kubectl;; \
+            *) echo "unsupported architecture for kubectl"; exit 1 ;; \
+    esac; \
     chmod +x /usr/local/bin/kubectl
 
 # agent-scaler tools
