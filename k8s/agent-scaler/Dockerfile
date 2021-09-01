@@ -12,7 +12,7 @@ RUN yum repolist && \
         gettext \
         rh-python38 \
         rh-python38-python-pip && \
-    curl -Ls https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl \
+    curl -Ls https://dl.k8s.io/release/v1.20.0/bin/linux/$(uname -p)/kubectl \
          -o /usr/local/bin/kubectl && \
     chmod +x /usr/local/bin/kubectl
 
