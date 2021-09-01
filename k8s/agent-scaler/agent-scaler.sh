@@ -5,14 +5,14 @@ max_jobs=${MAX_JOBS:-10}
 check_delay=${CHECK_DELAY:-10}
 # Kubernetes 1.21 supports jobs TTL controller, which cleans up jobs automatically
 # see https://kubernetes.io/docs/concepts/workloads/controllers/ttlafterfinished/
-use_k8s_ttl_controller=${USE_K8S_TTL_CONTROLLER:-false}
+use_k8s_ttl_controller=${USE_K8s_TTL_CONTROLLER:-"false"}
 
 namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
 # run forever
 while true; do
 
-    if [ $use_k8s_ttl_controller == false ] ; then
+    if [ "${use_k8s_ttl_controller}" == "false" ] ; then
       # cleanup finished jobs (status 1/1)
       for job in $(kubectl get jobs -n "${namespace}" | grep -E -e 'joshua-agent-[0-9-]*\s*1/1' | awk '{print $1}'); do
           echo "=== Job $job Completed ==="
