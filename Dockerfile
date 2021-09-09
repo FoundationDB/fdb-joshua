@@ -75,7 +75,8 @@ ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
 ARG OLD_TLS_LIBRARY_DIR=/app/deploy/runtime/.tls_5_1/
 ARG FDB_VERSION="6.2.29"
 ARG OLD_FDB_VERSIONS="6.3.15"
-RUN if [ "$(uname -p)" == "x86_64" ]; then \
+RUN case "$(uname -p)" in \
+    "x86_64") \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  ${OLD_TLS_LIBRARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
@@ -86,8 +87,19 @@ RUN if [ "$(uname -p)" == "x86_64" ]; then \
         curl -Ls https://www.foundationdb.org/downloads/${FDB_VERSION}/linux/libfdb_c_${FDB_VERSION}.so -o /usr/lib64/libfdb_c_${FDB_VERSION}.so && \
         ln -s /usr/lib64/libfdb_c_${FDB_VERSION}.so /usr/lib64/libfdb_c.so && \
         ln -s ${OLD_TLS_LIBRARY_DIR}/FDBGnuTLS.so /usr/lib/foundationdb/plugins/fdb-libressl-plugin.so && \
-        ln -s ${OLD_TLS_LIBRARY_DIR}/FDBGnuTLS.so /usr/lib/foundationdb/plugins/FDBGnuTLS.so; \
-        fi
+        ln -s ${OLD_TLS_LIBRARY_DIR}/FDBGnuTLS.so /usr/lib/foundationdb/plugins/FDBGnuTLS.so \
+	;; \
+    "aarch64") \
+        curl -Ls https://github.com/libffi/libffi/releases/download/v3.4.2/libffi-3.4.2.tar.gz | tar -xz -C /tmp && \
+	cd /tmp/libffi-3.4.2 && \
+	./configure && \
+	make && \
+	make install && \
+	ln -s /usr/local/lib64/libffi.so.8.1.0 /usr/local/lib64/libffi.so.6 && \
+	cd /tmp && \
+	rm -rf libffi-3.4.2 \
+        ;; \
+    esac
 
 ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=300
@@ -96,6 +108,7 @@ USER joshua
 CMD source /opt/rh/devtoolset-8/enable && \
     source /opt/rh/rh-python38/enable && \
     source /opt/rh/rh-ruby27/enable && \
+    export LD_LIBRARY_PATH=/usr/local/lib64:${LD_LIBRARY_PATH} && \
     python3 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \
         --work_dir /var/joshua \
