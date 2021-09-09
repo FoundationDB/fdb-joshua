@@ -82,7 +82,13 @@ RUN if [ "$(uname -p)" == "x86_64" ]; then \
         curl -Ls https://www.foundationdb.org/downloads/misc/fdbservers-${OLD_FDB_VERSIONS}.tar.gz | tar -xz -C ${OLD_FDB_BINARY_DIR} && \
         rm -f ${OLD_FDB_BINARY_DIR}/*.sha256 && \
         chmod +x ${OLD_FDB_BINARY_DIR}/* && \
-        curl -Ls https://www.foundationdb.org/downloads/misc/joshua_tls_library.tar.gz | tar -xz -C ${OLD_TLS_LIBRARY_DIR} --strip-components=1 && \
+        curl -f -Ls https://www.foundationdb.org/downloads/misc/joshua_tls_library.tar.gz -o /tmp/joshua_tls_library.tar.gz || true && \
+        if [ -f /tmp/joshua_tls_library.tar.gz ]; then \
+            tar xzf -C ${OLD_TLS_LIBRARY_DIR} --strip-components=1 /tmp/joshua_tls_library.tar.gz; \
+            rm /tmp/joshua_tls_library.tar.gz; \
+        else \
+            rm ${OLD_FDB_BINARY_DIR}/fdbserver-5.[0-2].*; \
+        fi && \
         curl -Ls https://www.foundationdb.org/downloads/${FDB_VERSION}/linux/libfdb_c_${FDB_VERSION}.so -o /usr/lib64/libfdb_c_${FDB_VERSION}.so && \
         ln -s /usr/lib64/libfdb_c_${FDB_VERSION}.so /usr/lib64/libfdb_c.so && \
         ln -s ${OLD_TLS_LIBRARY_DIR}/FDBGnuTLS.so /usr/lib/foundationdb/plugins/fdb-libressl-plugin.so && \
