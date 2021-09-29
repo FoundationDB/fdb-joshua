@@ -46,45 +46,7 @@ def timestamp_of(time_string):
 
 
 def get_active_ensembles(stopped, sanity=False, username=None):
-    if stopped:
-        ensemble_list = joshua_model.list_all_ensembles()
-    elif sanity:
-        ensemble_list = joshua_model.list_sanity_ensembles()
-    else:
-        ensemble_list = joshua_model.list_active_ensembles()
-    # Filter by username, if specified
-    if username:
-        ensemble_list = list(
-            filter(lambda i: i[1].get('username', None) == username,
-                   ensemble_list))
-    # Determine the runtime, if not defined
-    for e, props in ensemble_list:
-        if props.get('runtime', None) is None:
-            if props.get('submitted', None) is not None:
-                props['runtime'] = joshua_model.format_timedelta(
-                    datetime.now(timezone.utc) -
-                    joshua_model.load_datetime(props['submitted']))
-        if props.get('stopped', None) is not None:
-            props['remaining'] = "0"
-        elif props.get('runtime', None) is not None:
-            if props.get('ended', None) is not None:
-                jobs_done = int(props.get('ended', 1))
-                max_runs = int(props.get('max_runs', 0))
-                if max_runs == 0:
-                    props['remaining'] = "no_max"
-                elif max_runs < jobs_done:
-                    props['remaining'] = "stopping"
-                else:
-                    props['remaining'] = joshua_model.format_timedelta(
-                        timedelta(seconds=joshua_model.load_timedelta(
-                            props['runtime']).total_seconds() *
-                                  (int(props['max_runs']) - jobs_done) /
-                                  jobs_done))
-            else:
-                props['remaining'] = "not_started"
-        else:
-            props['remaining'] = "old_version"
-    return ensemble_list
+    return joshua_model.get_active_ensembles(stopped, sanity, username)
 
 
 def list_active_ensembles(stopped, sanity=False, username=None, show_in_progress=None, **args):
@@ -157,6 +119,7 @@ def start_ensemble(tarball,
         ensemble_id = joshua_model.create_ensemble(username, properties,
                                                    tarfile, sanity)
     print(format_ensemble(ensemble_id, properties))
+    return ensemble_id
 
 
 def stop_ensemble(ensemble=None,
