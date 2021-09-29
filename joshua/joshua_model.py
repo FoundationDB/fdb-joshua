@@ -684,7 +684,7 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
 
-    props = _get_ensemble_properties(tr, ensemble_id, snapshot=True)
+    props = _get_ensemble_properties(tr, ensemble_id, snapshot=False)
     started = props.get("started", 0)
     max_runs = props.get("max_runs", 0)
     if started >= max_runs:
