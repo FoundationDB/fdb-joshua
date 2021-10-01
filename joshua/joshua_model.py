@@ -460,7 +460,7 @@ def get_active_ensembles(stopped, sanity=False, username=None) -> List[Tuple[str
                     props['remaining'] = "stopping"
                 else:
                     props['remaining'] = format_timedelta(
-                        datetime.timedelta(
+                        timedelta(
                             seconds=load_timedelta(
                                 props['runtime']).total_seconds() *
                             (int(props['max_runs']) - jobs_done) / jobs_done))
