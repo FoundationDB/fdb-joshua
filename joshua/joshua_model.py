@@ -575,9 +575,6 @@ def set_versionstamped_key(tr, prefix, suffix, value):
 def _increment(tr : fdb.Transaction, ensemble_id : str, counter : str) -> None:
     tr.add(dir_all_ensembles[ensemble_id]['count'][counter], ONE)
 
-def _decrement(tr : fdb.Transaction, ensemble_id : str, counter : str) -> None:
-    # add -1
-    tr.add(dir_all_ensembles[ensemble_id]['count'][counter], struct.pack('<q', -1))
 
 def _add(tr : fdb.Transaction, ensemble_id : str, counter : str, value : int) -> None:
     byte_val = struct.pack("<Q", value)
@@ -618,8 +615,6 @@ def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str) -> bool:
     props = _get_ensemble_properties(tr, ensemble_id, snapshot=True)
     started = props.get("started", 0)
     max_runs = props.get("max_runs", 0)
-    # check overshoot
-    assert started <= max_runs
     # max_runs == 0 means run forever
     if max_runs > 0 and started >= max_runs:
         current_time = time.time()
@@ -642,8 +637,6 @@ def should_run_ensemble(tr : fdb.Transaction, ensemble_id : str) -> bool:
             tr.add_read_conflict_key(dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed])
             del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
             del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
-            # The original run will be cancelled. Decrement the started counter.
-            _decrement(tr, ensemble_id, 'started')
             return True
         return False
     else:
@@ -683,13 +676,6 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
     if tr[dir_ensemble_incomplete[ensemble_id][seed]] != None:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
-
-    props = _get_ensemble_properties(tr, ensemble_id, snapshot=False)
-    started = props.get("started", 0)
-    max_runs = props.get("max_runs", 0)
-    if started >= max_runs:
-        # Don't run if enough tests have started
-        return False
 
     _increment(tr, ensemble_id, 'started')
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid
