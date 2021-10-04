@@ -1,6 +1,6 @@
-#
-# setup.py
-#
+"""
+    setup.py
+"""
 # This source file is part of the FoundationDB open source project
 #
 # Copyright 2013-2020 Apple Inc. and the FoundationDB project authors
@@ -17,18 +17,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 from distutils.core import setup, Extension
 
 import os.path
+
 file_dir = os.path.dirname(__file__)
 
-childsubreaper = Extension('childsubreaper',
-                           sources=[os.path.join(file_dir, 'childsubreaper.c')])
-setup(name='childsubreaper',
-      version='1.0',
-      author='The FoundationDB Team',
-      author_email='fdbteam@apple.com',
-      description=
-      'This wraps the prctl command to set a process as the child subreaper',
-      ext_modules=[childsubreaper])
+childsubreaper = Extension(
+    "childsubreaper", sources=[os.path.join(file_dir, "childsubreaper.c")]
+)
+setup(
+    name="childsubreaper",
+    version="1.0",
+    author="The FoundationDB Team",
+    author_email="fdbteam@apple.com",
+    description="This wraps the prctl command to set a process as the child subreaper",
+    ext_modules=[childsubreaper],
+)
