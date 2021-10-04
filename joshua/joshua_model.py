@@ -18,29 +18,30 @@
 # limitations under the License.
 #
 
-from collections import defaultdict
-
-from typing import Dict, Tuple, List, Optional
-import fdb
-
-fdb.api_version(520)
-import fdb.tuple
-from io import BytesIO
-from datetime import datetime, timedelta, timezone
+import datetime
 import hashlib
 import heapq
+import logging
 import os
-import re
 import random
+import re
 import socket
 import struct
+import sys
 import time
 import traceback
 import xml.etree.ElementTree as ET
 import zlib
-import sys
+from collections import defaultdict
+from io import BytesIO
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
-import logging
+import fdb
+import fdb.tuple
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -178,7 +179,7 @@ def unwrap_message(text):
 
 def load_datetime(string):
     #    print( 'string: {}  now: {}'.format(string, format_datetime(datetime.datetime.now(timezone.utc))) )
-    return datetime.strptime(string, TIMESTAMP_FMT).replace(tzinfo=timezone.utc)
+    return datetime.datetime.strptime(string, TIMESTAMP_FMT).replace(tzinfo=datetime.timezone.utc)
 
 
 def load_timedelta(string):
@@ -188,7 +189,7 @@ def load_timedelta(string):
         m = TIMEDELTA_REGEX2.match(string)
     parse_info = {key: float(val) for key, val in m.groupdict().items()}
     #    print( 'string: {}  parsed: {}'.format(string, parse_info) )
-    return timedelta(**parse_info)
+    return datetime.timedelta(**parse_info)
 
 
 def format_timedelta(timedelta_obj):
@@ -406,7 +407,7 @@ def _create_ensemble(tr, ensemble_id, properties, sanity=False):
 
 def create_ensemble(userid, properties, tarball, sanity=False):
     hash = get_hash(tarball)
-    timestamp = format_datetime(datetime.now(timezone.utc))
+    timestamp = format_datetime(datetime.datetime.now(datetime.timezone.utc))
     ensemble_id = timestamp + "-" + userid + "-" + hash[:16]
     if "submitted" not in properties:
         properties["submitted"] = timestamp
@@ -448,7 +449,7 @@ def get_active_ensembles(
         if props.get("runtime", None) is None:
             if props.get("submitted", None) is not None:
                 props["runtime"] = format_timedelta(
-                    datetime.now(timezone.utc) - load_datetime(props["submitted"])
+                    datetime.datetime.now(datetime.timezone.utc) - load_datetime(props["submitted"])
                 )
         if props.get("stopped", None) is not None:
             props["remaining"] = "0"
@@ -461,7 +462,7 @@ def get_active_ensembles(
                     props["remaining"] = "stopping"
                 else:
                     props["remaining"] = format_timedelta(
-                        datetime.timedelta(
+                        datetime.datetime.timedelta(
                             seconds=load_timedelta(props["runtime"]).total_seconds()
                             * (int(props["max_runs"]) - jobs_done)
                             / jobs_done
@@ -485,7 +486,7 @@ def _stop_ensemble(tr, ensemble_id, sanity=False):
     # Set the stopped and runtime, if not set
     if tr[dir[ensemble_id]] is not None:
         # Get the current time
-        stoptime = datetime.now(timezone.utc)
+        stoptime = datetime.datetime.now(datetime.timezone.utc)
         # Get the ensemble properties
         properties = get_ensemble_properties(ensemble_id)
         # Get the ensemble submission time, if not defined use now
@@ -970,7 +971,7 @@ def get_agent_failures(tr, time_start=None, time_end=None):
             :-1
         ]  # Last element is a random seed.
         info = (
-            datetime.fromtimestamp(raw_info[0]).strftime("%Y-%b-%d (%a) %I:%M:%S %p"),
+            datetime.datetime.fromtimestamp(raw_info[0]).strftime("%Y-%b-%d (%a) %I:%M:%S %p"),
         ) + raw_info[1:]
         msg = raw_failure.value
 
