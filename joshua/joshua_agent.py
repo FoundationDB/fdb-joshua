@@ -1,6 +1,6 @@
-#
-# joshua_agent.py
-#
+"""
+    joshua_agent.py
+"""
 # This source file is part of the FoundationDB open source project
 #
 # Copyright 2013-2020 Apple Inc. and the FoundationDB project authors
@@ -30,10 +30,10 @@ try:
     import childsubreaper
 except ImportError:
     print(
-        'Unable to import module childsubreaper. Orphaned grandchildren will re-parent to init.'
+        "Unable to import module childsubreaper. Orphaned grandchildren will re-parent to init."
     )
 
-#basepath = os.getcwd()
+# basepath = os.getcwd()
 mutex = threading.Lock()
 job_mutex = threading.Lock()
 threadlocal = threading.local()
@@ -45,7 +45,6 @@ stop_agent = False
 
 # This is thrown by Joshua to indicate that there was an error.
 class JoshuaError(Exception):
-
     def __init__(self, msg):
         self.msg = msg
 
@@ -53,12 +52,11 @@ class JoshuaError(Exception):
         return repr(self)
 
     def __repr__(self):
-        return 'JoshuaError(' + repr(self.msg) + ')'
+        return "JoshuaError(" + repr(self.msg) + ")"
 
 
 # This is used to handle waiting for a given amount of time.
 class TimeoutFuture(object):
-
     def __init__(self, timeout):
         self.cb_list = []
         self.timer = threading.Timer(timeout, self._do_on_ready)
@@ -91,7 +89,7 @@ class TimeoutFuture(object):
 
 
 def getFileHandle():
-    output_fd = getattr(threadlocal, 'output_fd', None)
+    output_fd = getattr(threadlocal, "output_fd", None)
     return output_fd if output_fd else sys.stdout
 
 
@@ -120,16 +118,22 @@ def trim_jobqueue(cutoff_date, remove_jobs=True):
 
 
 def log(outputText, newline=True):
-    return print(
-        outputText,
-        file=getFileHandle()) if newline else getFileHandle().write(outputText)
+    return (
+        print(outputText, file=getFileHandle())
+        if newline
+        else getFileHandle().write(outputText)
+    )
 
 
 def agent_init(work_dir):
     if not work_dir:
         raise JoshuaError(
-            'Unable to run function since work_dir is not defined. Exiting. (CWD='
-            + os.getcwd() + ') (PATH = ' + os.getenv('PATH') + ')')
+            "Unable to run function since work_dir is not defined. Exiting. (CWD="
+            + os.getcwd()
+            + ") (PATH = "
+            + os.getenv("PATH")
+            + ")"
+        )
     os.makedirs(ensemble_dir(basepath=work_dir), mode=0o755, exist_ok=True)
     return True
 
@@ -137,10 +141,15 @@ def agent_init(work_dir):
 def ensemble_dir(ensemble_id=None, basepath=None):
     if not basepath:
         raise JoshuaError(
-            'Unable to run function since basepath is not defined. Exiting. (CWD='
-            + os.getcwd() + ') (PATH = ' + os.getenv('PATH') + ')')
-    return os.path.join(*((basepath, "ensembles") +
-                          ((ensemble_id,) if ensemble_id else ())))
+            "Unable to run function since basepath is not defined. Exiting. (CWD="
+            + os.getcwd()
+            + ") (PATH = "
+            + os.getenv("PATH")
+            + ")"
+        )
+    return os.path.join(
+        *((basepath, "ensembles") + ((ensemble_id,) if ensemble_id else ()))
+    )
 
 
 def check_archive_path(name):
@@ -151,6 +160,7 @@ def check_archive_path(name):
         return False
     return True
 
+
 def ensure_state_test_delay():
     """
     In testing this can be overriden to introduce a delay to simulate a large
@@ -160,11 +170,15 @@ def ensure_state_test_delay():
 
 
 def ensure_state(ensemble_id, where, properties, basepath=None):
-    ensure_state_test_delay() # noop outside of testing
+    ensure_state_test_delay()  # noop outside of testing
     if not basepath:
         raise JoshuaError(
-            'Unable to run function since basepath is not defined. Exiting. (CWD='
-            + os.getcwd() + ') (PATH = ' + os.getenv('PATH') + ')')
+            "Unable to run function since basepath is not defined. Exiting. (CWD="
+            + os.getcwd()
+            + ") (PATH = "
+            + os.getenv("PATH")
+            + ")"
+        )
     if os.path.exists(where):
         return False
 
@@ -181,12 +195,12 @@ def ensure_state(ensemble_id, where, properties, basepath=None):
         members = tarf.getmembers()
         tarf.extractall(
             path=tmpdir,
-            members=[
-                m for m in tarf.getmembers() if check_archive_path(m.name)
-            ])
+            members=[m for m in tarf.getmembers() if check_archive_path(m.name)],
+        )
 
-    os.symlink(os.path.join(basepath, "global_data"),
-               os.path.join(tmpdir, "global_data"))
+    os.symlink(
+        os.path.join(basepath, "global_data"), os.path.join(tmpdir, "global_data")
+    )
 
     try:
         # Create a temporary directory within the "where" directory.
@@ -212,8 +226,12 @@ def ensure_state(ensemble_id, where, properties, basepath=None):
 def tar_artifacts(ensemble, seed, sources, dest, work_dir=None):
     if not work_dir:
         raise JoshuaError(
-            'Unable to run function since basepath is not defined. Exiting. (CWD='
-            + os.getcwd() + ') (PATH = ' + os.getenv('PATH') + ')')
+            "Unable to run function since basepath is not defined. Exiting. (CWD="
+            + os.getcwd()
+            + ") (PATH = "
+            + os.getenv("PATH")
+            + ")"
+        )
     try:
         # Create a temporary directory in the destination where we will store the results.
         out_name = "joshua-run-{0}-{1}".format(ensemble, seed)
@@ -225,18 +243,19 @@ def tar_artifacts(ensemble, seed, sources, dest, work_dir=None):
             if os.path.exists(source):
                 if os.path.isdir(source):
                     shutil.copytree(
-                        source, os.path.join(tmpdir, os.path.basename(source)))
+                        source, os.path.join(tmpdir, os.path.basename(source))
+                    )
                 else:
                     shutil.copy(source, tmpdir)
 
         # Tar and gzip the copied files.
-        with open(tmpdir + '.tar.gz', 'wb') as tar_file_obj:
-            tarf = tarfile.open(fileobj=tar_file_obj, mode='w:gz')
+        with open(tmpdir + ".tar.gz", "wb") as tar_file_obj:
+            tarf = tarfile.open(fileobj=tar_file_obj, mode="w:gz")
             tarf.add(tmpdir, arcname=os.path.basename(tmpdir))
             tarf.close()
 
         # Copy the .tar.gz file to its final destination.
-        shutil.move(tmpdir + '.tar.gz', dest)
+        shutil.move(tmpdir + ".tar.gz", dest)
 
         shutil.rmtree(tmpdir)
     except Exception as e:
@@ -258,10 +277,14 @@ def clear_directory(path):
 def find_cores(work_dir=None):
     if not work_dir:
         raise JoshuaError(
-            'Unable to run function since work_dir is not defined. Exiting. (CWD='
-            + os.getcwd() + ') (PATH = ' + os.getenv('PATH') + ')')
+            "Unable to run function since work_dir is not defined. Exiting. (CWD="
+            + os.getcwd()
+            + ") (PATH = "
+            + os.getenv("PATH")
+            + ")"
+        )
     cores = []
-    core_pattern = re.compile(r'^core\..*$')
+    core_pattern = re.compile(r"^core\..*$")
 
     for root, dirs, files in os.walk(work_dir):
         for file in files:
@@ -276,8 +299,7 @@ def find_cores(work_dir=None):
 def remove_old_artifacts(path, age=24 * 60 * 60):
     for artifact in list(os.listdir(path)):
         try:
-            if time.time() - os.path.getmtime(os.path.join(path,
-                                                           artifact)) >= age:
+            if time.time() - os.path.getmtime(os.path.join(path, artifact)) >= age:
                 os.unlink(os.path.join(path, artifact))
         except Exception as e:
             # Non-critical. Print an error message and move on.
@@ -285,23 +307,30 @@ def remove_old_artifacts(path, age=24 * 60 * 60):
 
 
 # Returns whether the artifacts should be saved based on run state.
-def should_save(retcode, save_on='FAILURE'):
-    return save_on == 'ALWAYS' or save_on == 'FAILURE' and retcode != 0
+def should_save(retcode, save_on="FAILURE"):
+    return save_on == "ALWAYS" or save_on == "FAILURE" and retcode != 0
 
 
 # Removes artifacts from the current run, saving them if necessary.
-def cleanup(ensemble, where, seed, retcode=0, save_on='FAILURE', work_dir=None):
+def cleanup(ensemble, where, seed, retcode=0, save_on="FAILURE", work_dir=None):
     if not work_dir:
         raise JoshuaError(
-            'Unable to run function since work_dir is not defined. Exiting. (CWD='
-            + os.getcwd() + ') (PATH = ' + os.getenv('PATH') + ')')
+            "Unable to run function since work_dir is not defined. Exiting. (CWD="
+            + os.getcwd()
+            + ") (PATH = "
+            + os.getenv("PATH")
+            + ")"
+        )
     # Save the results of the operation if we are supposed to do so.
     core_files = find_cores(work_dir=work_dir)
     if should_save(retcode, save_on):
-        tar_artifacts(ensemble,
-                      seed, [os.path.join(where, 'tmp')] + core_files,
-                      os.path.join(work_dir, 'runs'),
-                      work_dir=work_dir)
+        tar_artifacts(
+            ensemble,
+            seed,
+            [os.path.join(where, "tmp")] + core_files,
+            os.path.join(work_dir, "runs"),
+            work_dir=work_dir,
+        )
 
     # Delete the core files.
     for core_file in core_files:
@@ -325,18 +354,19 @@ def cleanup(ensemble, where, seed, retcode=0, save_on='FAILURE', work_dir=None):
         if not problem_killing:
             break
 
-    getFileHandle().write('\n')
+    getFileHandle().write("\n")
 
     # Something abnormal happened. Raise to restart machine.
     if problem_killing:
         if killing_error is None:
             raise JoshuaError(
-                'Could not kill main process in a reasonable amount of time.')
+                "Could not kill main process in a reasonable amount of time."
+            )
         else:
             raise killing_error
 
     # Clear the temporary directory.
-    clear_directory(os.path.join(where, 'tmp'))
+    clear_directory(os.path.join(where, "tmp"))
 
 
 class AsyncEnsemble:
@@ -590,20 +620,26 @@ def run_ensemble(
             return asyncEnsemble._retcode
 
 
-def agent(agent_timeout=None,
-          save_on='FAILURE',
-          sanity_period=None,
-          agent_idle_timeout=None,
-          timeout_command_timeout=60,
-          stop_file=None,
-          log_file=None,
-          work_dir=None):
+def agent(
+    agent_timeout=None,
+    save_on="FAILURE",
+    sanity_period=None,
+    agent_idle_timeout=None,
+    timeout_command_timeout=60,
+    stop_file=None,
+    log_file=None,
+    work_dir=None,
+):
     if not work_dir:
         raise JoshuaError(
-            'Unable to run function since work_dir is not defined. Exiting. (CWD='
-            + os.getcwd() + ') (PATH = ' + os.getenv('PATH') + ')')
+            "Unable to run function since work_dir is not defined. Exiting. (CWD="
+            + os.getcwd()
+            + ") (PATH = "
+            + os.getenv("PATH")
+            + ")"
+        )
     if log_file:
-        threadlocal.output_fd = open(log_file, 'w+')
+        threadlocal.output_fd = open(log_file, "w+")
     # Make sure "ensembles" directory exists.
     os.makedirs(ensemble_dir(basepath=work_dir), mode=0o755, exist_ok=True)
 
@@ -614,16 +650,20 @@ def agent(agent_timeout=None,
         # Run all of the sanity tests first, and if any of them fail, exit.
         sanity_ensembles = joshua_model.list_sanity_ensembles()
         for ensemble, _ in sanity_ensembles:
-            retcode = run_ensemble(ensemble,
-                                   save_on,
-                                   sanity=True,
-                                   work_dir=work_dir,
-                                   timeout_command_timeout=timeout_command_timeout)
+            retcode = run_ensemble(
+                ensemble,
+                save_on,
+                sanity=True,
+                work_dir=work_dir,
+                timeout_command_timeout=timeout_command_timeout,
+            )
 
             if retcode != 0:
                 raise JoshuaError(
-                    'Unable to run sanity test successfully as machine started up. Exiting. (PATH = '
-                    + os.getenv('PATH') + ')')
+                    "Unable to run sanity test successfully as machine started up. Exiting. (PATH = "
+                    + os.getenv("PATH")
+                    + ")"
+                )
 
         # Keep track of the last time the sanity tests were run so we know if it's time to do another.
         last_sanity = time.time()
@@ -634,84 +674,93 @@ def agent(agent_timeout=None,
         while True:
             # Break if the stop file is defined and present
             if stop_file and os.path.exists(stop_file):
-                log('Exiting due to existing stopfile: {}'.format(stop_file))
+                log("Exiting due to existing stopfile: {}".format(stop_file))
                 break
             # Break if requested
             if stopAgent():
-                log('Exiting due to global request')
+                log("Exiting due to global request")
                 break
 
             if (not watch) or watch.is_ready():
-                ensembles, watch = joshua_model.list_and_watch_active_ensembles(
-                )
+                ensembles, watch = joshua_model.list_and_watch_active_ensembles()
 
             # Run sanity tests now (before clearing).
             if sanity_watch and sanity_watch.is_ready():
-                sanity_ensembles, sanity_watch = joshua_model.list_and_watch_sanity_ensembles(
-                )
+                (
+                    sanity_ensembles,
+                    sanity_watch,
+                ) = joshua_model.list_and_watch_sanity_ensembles()
 
                 # One or more of the sanity tests changed. Re-run them.
                 for ensemble in sanity_ensembles:
-                    retcode = run_ensemble(ensemble,
-                                           save_on,
-                                           sanity=True,
-                                           work_dir=work_dir,
-                                           timeout_command_timeout=timeout_command_timeout)
+                    retcode = run_ensemble(
+                        ensemble,
+                        save_on,
+                        sanity=True,
+                        work_dir=work_dir,
+                        timeout_command_timeout=timeout_command_timeout,
+                    )
 
                     if retcode != 0:
                         raise JoshuaError(
-                            'Unable to run sanity test successfully after new test uploaded. Exiting. (PATH = '
-                            + os.getenv('PATH') + ')')
+                            "Unable to run sanity test successfully after new test uploaded. Exiting. (PATH = "
+                            + os.getenv("PATH")
+                            + ")"
+                        )
 
                 last_sanity = time.time()
                 continue
 
             elif not sanity_watch:
-                sanity_ensembles, sanity_watch = joshua_model.list_and_watch_sanity_ensembles(
-                )
+                (
+                    sanity_ensembles,
+                    sanity_watch,
+                ) = joshua_model.list_and_watch_sanity_ensembles()
 
             # If we haven't run the sanity tests in the specified amount of time; run them again.
-            if sanity_period is not None and time.time(
-            ) - last_sanity >= sanity_period:
+            if sanity_period is not None and time.time() - last_sanity >= sanity_period:
                 for ensemble in sanity_ensembles:
-                    retcode = run_ensemble(ensemble,
-                                           save_on,
-                                           sanity=True,
-                                           work_dir=work_dir,
-                                           timeout_command_timeout=timeout_command_timeout)
+                    retcode = run_ensemble(
+                        ensemble,
+                        save_on,
+                        sanity=True,
+                        work_dir=work_dir,
+                        timeout_command_timeout=timeout_command_timeout,
+                    )
 
                     if retcode != 0:
                         raise JoshuaError(
-                            'Unable to run sanity test successfully during periodic run. Exiting. (PATH = '
-                            + os.getenv('PATH') + ')')
+                            "Unable to run sanity test successfully during periodic run. Exiting. (PATH = "
+                            + os.getenv("PATH")
+                            + ")"
+                        )
 
                 last_sanity = time.time()
                 continue
 
             # Before beginning, look for zombies.
-            #zombies = process_handling.any_zombies()
-            #if zombies:
+            # zombies = process_handling.any_zombies()
+            # if zombies:
             #    print('\n'.join(zombies))
             #    raise JoshuaError('Zombie process (' + str(zombies) + ') present (before beginning)!')
 
             # FIXME: Temporarily disabling this. Probably we should decide whether we are doing this or not.
             # As part of routine maintenance, get rid of artifacts.
-            #remove_old_artifacts(os.path.join(basepath, 'runs'))
+            # remove_old_artifacts(os.path.join(basepath, 'runs'))
 
             # Throw away local state for ensembles that are no longer active
-            local_ensemble_dirs = set(
-                os.listdir(ensemble_dir(basepath=work_dir)))
-            for e in (local_ensemble_dirs -
-                      set(ensembles)) - set(sanity_ensembles):
-                log("removing {} {}".format(e, ensemble_dir(e,
-                                                            basepath=work_dir)))
+            local_ensemble_dirs = set(os.listdir(ensemble_dir(basepath=work_dir)))
+            for e in (local_ensemble_dirs - set(ensembles)) - set(sanity_ensembles):
+                log("removing {} {}".format(e, ensemble_dir(e, basepath=work_dir)))
                 shutil.rmtree(
                     ensemble_dir(e, basepath=work_dir), True
                 )  # SOMEDAY: this sometimes throws errors, but we don't know why and it isn't that important
 
             ensembles_can_run = None
             if ensembles:
-                ensembles_can_run = list(filter(joshua_model.should_run_ensemble, ensembles))
+                ensembles_can_run = list(
+                    filter(joshua_model.should_run_ensemble, ensembles)
+                )
                 if not ensembles_can_run:
                     # All the ensembles have enough runs started for now. Don't
                     # time the agent out, just wait until there are no
@@ -729,8 +778,10 @@ def agent(agent_timeout=None,
 
                 # End the loop if we have exceeded the time given.
                 now = time.time()
-                if (agent_timeout is not None and now - start >= agent_timeout) or \
-                   (agent_idle_timeout is not None and now - idle_start >= agent_idle_timeout):
+                if (agent_timeout is not None and now - start >= agent_timeout) or (
+                    agent_idle_timeout is not None
+                    and now - idle_start >= agent_idle_timeout
+                ):
                     log("Agent timed out")
                     break
                 else:
@@ -740,8 +791,7 @@ def agent(agent_timeout=None,
 
             # Pick an ensemble to run. Weight by amount of time spent on each one.
 
-
-#            print('{} Picking from {} ensembles'.format(threading.current_thread().name, len(ensembles)))
+            #            print('{} Picking from {} ensembles'.format(threading.current_thread().name, len(ensembles)))
             durations = joshua_model.get_ensemble_mean_durations(ensembles_can_run)
             priorities = joshua_model.get_ensemble_priorities(ensembles_can_run)
             buckets = [(en, priorities[en] / durations[en]) for en in ensembles_can_run]
@@ -755,27 +805,41 @@ def agent(agent_timeout=None,
                     chosen_ensemble = ensemble
                     break
             assert chosen_ensemble is not None
-            retcode = run_ensemble(chosen_ensemble, save_on, work_dir=work_dir, timeout_command_timeout=timeout_command_timeout)
+            retcode = run_ensemble(
+                chosen_ensemble,
+                save_on,
+                work_dir=work_dir,
+                timeout_command_timeout=timeout_command_timeout,
+            )
             # Exit agent gracefully via stopfile on probable zombie process
             if retcode == -1 or retcode == -2:
                 if stop_file is None:
                     stop_file = sys.executable
-                    log('Defining exiting stopfile: {} to prevent zombie ({})'.
-                        format(stop_file, retcode))
+                    log(
+                        "Defining exiting stopfile: {} to prevent zombie ({})".format(
+                            stop_file, retcode
+                        )
+                    )
                 elif not os.path.exists(stop_file):
-                    log('Creating stopfile: {} to prevent zombie ({})'.format(
-                        stop_file, retcode))
-                    open(stop_file, 'a').close()
+                    log(
+                        "Creating stopfile: {} to prevent zombie ({})".format(
+                            stop_file, retcode
+                        )
+                    )
+                    open(stop_file, "a").close()
                 else:
-                    log('Happy for existing stopfile: {} preventing zombie ({})'
-                        .format(stop_file, retcode))
+                    log(
+                        "Happy for existing stopfile: {} preventing zombie ({})".format(
+                            stop_file, retcode
+                        )
+                    )
 
             # reset idle timer
             idle_start = time.time()
 
             # Look for zombies after running.
-            #zombies = process_handling.any_zombies()
-            #if zombies:
+            # zombies = process_handling.any_zombies()
+            # if zombies:
             #    print('\n'.join(zombies))
             #    raise JoshuaError('Zombie process (' + str(zombies) + ') present (after end)!')
     except:
@@ -785,79 +849,86 @@ def agent(agent_timeout=None,
 
 def reap_children():
     # Call prctl(PR_SET_CHILD_SUBREAPER) so that grandchildren re-parent to this process instead of init.
-    if 'childsubreaper' in dir():
+    if "childsubreaper" in dir():
         retcode = childsubreaper.set_child_subreaper()
 
         if retcode != 0:
             print(
-                'Call prctl(PR_SET_CHILD_SUBREAPER) returned non-zero error code ',
-                retcode)
-            print('Orphaned grandchildren may re-parent to init.')
+                "Call prctl(PR_SET_CHILD_SUBREAPER) returned non-zero error code ",
+                retcode,
+            )
+            print("Orphaned grandchildren may re-parent to init.")
 
 
 if __name__ == "__main__":
     reap_children()
 
-    stop_file = os.environ.get('AGENT_STOPFILE', None)
+    stop_file = os.environ.get("AGENT_STOPFILE", None)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-C',
-                        '--cluster-file',
-                        default=None,
-                        help='Cluster file for Joshua database')
     parser.add_argument(
-        '-D',
-        '--dir-path',
-        nargs='+',
-        default=('joshua',),
-        help='top-level directory path in which joshua operates')
+        "-C", "--cluster-file", default=None, help="Cluster file for Joshua database"
+    )
     parser.add_argument(
-        '--apoptosis',
+        "-D",
+        "--dir-path",
+        nargs="+",
+        default=("joshua",),
+        help="top-level directory path in which joshua operates",
+    )
+    parser.add_argument(
+        "--apoptosis",
         type=int,
         default=None,
-        help=
-        'A pseudo-randomized amount of time (in seconds) to wait before the agent '
-        'kills itself in order to prevent agent decay. It is fuzzed to avoid mass '
-        'destruction, and it is never the case that the box is shut down during a '
-        'test. Default behavior is to never purposefully die.')
+        help="A pseudo-randomized amount of time (in seconds) to wait before the agent "
+        "kills itself in order to prevent agent decay. It is fuzzed to avoid mass "
+        "destruction, and it is never the case that the box is shut down during a "
+        "test. Default behavior is to never purposefully die.",
+    )
     parser.add_argument(
-        '--save-on',
-        choices=['ALWAYS', 'FAILURE', 'NEVER'],
-        default='FAILURE',
-        help='How often Joshua should save the artifacts '
-        'of a run. The default is to save on FAILURE (when a test fails), but other '
-        'options are ALWAYS (every run) or NEVER (no runs).')
+        "--save-on",
+        choices=["ALWAYS", "FAILURE", "NEVER"],
+        default="FAILURE",
+        help="How often Joshua should save the artifacts "
+        "of a run. The default is to save on FAILURE (when a test fails), but other "
+        "options are ALWAYS (every run) or NEVER (no runs).",
+    )
     parser.add_argument(
-        '--sanity-period',
+        "--sanity-period",
         type=int,
         default=None,
-        help=
-        'The period between runs of the sanity test in seconds. In other words, '
-        'if 3600 is provided as an argument to this, every hour (more or less), the '
-        'agent will run all of the sanity tests again.')
+        help="The period between runs of the sanity test in seconds. In other words, "
+        "if 3600 is provided as an argument to this, every hour (more or less), the "
+        "agent will run all of the sanity tests again.",
+    )
     parser.add_argument(
-        '--agent-idle-timeout',
+        "--agent-idle-timeout",
         type=int,
         default=None,
-        help='An amount of time (in seconds) the agent waits for a new ensemble '
-        'to arrive. If it does not discover a new ensemble within this period, '
-        'it will exit. The default is to never timeout.')
+        help="An amount of time (in seconds) the agent waits for a new ensemble "
+        "to arrive. If it does not discover a new ensemble within this period, "
+        "it will exit. The default is to never timeout.",
+    )
     parser.add_argument(
-        '--timeout-command-timeout',
+        "--timeout-command-timeout",
         type=int,
         default=60,
-        help='An amount of time (in seconds) the agent waits for the timeout '
-        'script to complete. If it does not complete within this period, '
-        'it will exit. The default is 60 seconds.')
-    parser.add_argument('-W',
-                        '--work_dir',
-                        default=None,
-                        help='Specify work directory to run the agent.')
+        help="An amount of time (in seconds) the agent waits for the timeout "
+        "script to complete. If it does not complete within this period, "
+        "it will exit. The default is 60 seconds.",
+    )
     parser.add_argument(
-        '-S',
-        '--stop_file',
+        "-W",
+        "--work_dir",
+        default=None,
+        help="Specify work directory to run the agent.",
+    )
+    parser.add_argument(
+        "-S",
+        "--stop_file",
         default=stop_file,
-        help='Specify file whose existence will cause agent to stop.')
+        help="Specify file whose existence will cause agent to stop.",
+    )
     arguments = parser.parse_args()
 
     if arguments.apoptosis is not None:
@@ -872,17 +943,19 @@ if __name__ == "__main__":
     agent_init(arguments.work_dir)
 
     # Running everything (esp ctypes blocking calls) in a thread makes the program much more responsive to KeyboardInterrupt
-    t = threading.Thread(target=agent,
-                         args=(),
-                         kwargs={
-                             'agent_timeout': agent_timeout,
-                             'save_on': arguments.save_on,
-                             'sanity_period': arguments.sanity_period,
-                             'agent_idle_timeout': arguments.agent_idle_timeout,
-                             'timeout_command_timeout': arguments.timeout_command_timeout,
-                             'stop_file': arguments.stop_file,
-                             'work_dir': arguments.work_dir
-                         })
+    t = threading.Thread(
+        target=agent,
+        args=(),
+        kwargs={
+            "agent_timeout": agent_timeout,
+            "save_on": arguments.save_on,
+            "sanity_period": arguments.sanity_period,
+            "agent_idle_timeout": arguments.agent_idle_timeout,
+            "timeout_command_timeout": arguments.timeout_command_timeout,
+            "stop_file": arguments.stop_file,
+            "work_dir": arguments.work_dir,
+        },
+    )
     t.daemon = True
     t.start()
     while t.is_alive():
