@@ -119,7 +119,7 @@ def start_ensemble(tarball,
         ensemble_id = joshua_model.create_ensemble(username, properties,
                                                    tarfile, sanity)
     print(format_ensemble(ensemble_id, properties))
-    return ensemble_id
+    return str(ensemble_id)
 
 
 def stop_ensemble(ensemble=None,
