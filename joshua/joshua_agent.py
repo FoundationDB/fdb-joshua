@@ -18,13 +18,25 @@
 # limitations under the License.
 #
 
-from typing import Dict, Tuple
-from . import joshua_model, process_handling
-import argparse, errno, os, random, shutil, re, sys, tarfile, traceback, tempfile, time
+import argparse
+import errno
+import os
+import queue
+import random
+import re
+import shutil
+import sys
+import tarfile
+import tempfile
+import threading
+import time
+import traceback
+import datetime
+
 import subprocess32 as subprocess
-import threading, queue
 import fdb
-from datetime import datetime, timezone
+from . import joshua_model
+from . import process_handling
 
 try:
     import childsubreaper
@@ -482,7 +494,7 @@ class AsyncEnsemble:
                 getFileHandle().write(".")
 
         duration = max(1, time.time() - start_time)
-        done_timestamp = joshua_model.format_datetime(datetime.now(timezone.utc))
+        done_timestamp = joshua_model.format_datetime(datetime.datetime.now(datetime.timezone.utc))
 
         if retcode == -2 and time.time() > timeout_time:
             if os.path.isfile(os.path.join(where, timeout_command)):

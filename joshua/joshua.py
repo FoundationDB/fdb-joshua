@@ -19,13 +19,17 @@
 # limitations under the License.
 #
 
-from . import joshua_model
 import argparse
-import dateutil.parser, time
-from datetime import datetime, timedelta, timezone
-import os, pwd, sys
+import datetime
+import os
+import pwd
+import sys
 import threading
+import time
+
+import dateutil.parser
 import lxml.etree as le
+from . import joshua_model
 
 JOSHUA_USER_ENV = "JOSHUA_USER"
 
@@ -347,7 +351,7 @@ def delete_ensemble_range(
         # Parse the date to see if the ensemble is within the given range.
         try:
             timestamp = time.mktime(
-                datetime.strptime(
+                datetime.datetime.strptime(
                     "".join(ensemble.split("-")[:2]), "%Y%m%d%H%M%S"
                 ).timetuple()
             )

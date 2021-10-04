@@ -24,7 +24,13 @@
 #
 
 
-import errno, os, re, signal, subprocess, threading, time
+import errno
+import os
+import re
+import signal
+import subprocess
+import threading
+import time
 
 VAR_NAME = "OF_HOUSE_JOSHUA"
 
