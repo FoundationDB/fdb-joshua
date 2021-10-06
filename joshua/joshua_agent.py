@@ -748,14 +748,9 @@ def agent(
                 ensembles_can_run = list(
                     filter(joshua_model.should_run_ensemble, ensembles)
                 )
-                if not ensembles_can_run:
-                    # All the ensembles have enough runs started for now. Don't
-                    # time the agent out, just wait until there are no
-                    # ensembles or the other agents might have died.
-                    time.sleep(1)
-                    continue
-            else:
-                # No ensembles at all. Consider timing this agent out.
+
+            if not ensembles or (ensembles and not ensembles_can_run):
+                # No ensembles to run. Consider timing this agent out.
                 try:
                     watch.wait_for_any(watch, sanity_watch, TimeoutFuture(1.0))
                 except Exception as e:
