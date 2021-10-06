@@ -1,3 +1,6 @@
+"""
+    joshua
+"""
 from distutils.core import setup, Extension
 from collections import namedtuple
 
@@ -13,7 +16,7 @@ Module = namedtuple('Module', [
 all_modules = [
     Module('joshua-client',
            'Joshua Client - interface to a great big supercomputer',
-           ['argparse', 'foundationdb==6.2.10', 'python-dateutil', 'lxml'], [],
+           ['argparse', 'foundationdb==6.3.18', 'python-dateutil', 'lxml'], [],
            [childsubreaper], [
                'Operating System :: MacOS :: MacOS X',
                'Operating System :: Microsoft :: Windows',
@@ -22,7 +25,7 @@ all_modules = [
     Module(
         'joshua',
         'Joshua - a supercomputer that runs simulations of war^H^H^Hdatabases',
-        ['argparse', 'foundationdb==6.2.10', 'subprocess32'], [],
+        ['argparse', 'foundationdb==6.3.18', 'subprocess32'], [],
         [childsubreaper], ['Operating System :: POSIX :: Linux'])
 ]
 
@@ -34,13 +37,13 @@ if 'ARTIFACT' in os.environ:
     elif os.environ['ARTIFACT'] == 'all':
         modules = all_modules
     else:
-        raise ValueError("Unknown artifact: {}".format(os.environ['ARTIFACT']))
+        raise ValueError(f"Unknown artifact: {os.environ['ARTIFACT']}")
 else:
     modules = all_modules
 
 for module in modules:
     setup(name=module.name,
-          version="1.7.3",
+          version="1.8.0",
           author="The FoundationDB Team",
           author_email="fdbteam@apple.com",
           url="https://www.foundationdb.org",
@@ -57,6 +60,6 @@ for module in modules:
               'License :: OSI Approved :: MIT License',
           ] + module.platforms + [
               'Programming Language :: Python :: 3',
-              'Programming Language :: Python :: 3.7',
+              'Programming Language :: Python :: 3.8',
               'Programming Language :: Python :: Implementation :: CPython',
           ])
