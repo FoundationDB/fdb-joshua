@@ -46,7 +46,7 @@ import fdb.tuple
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-fdb.api_version(520)
+fdb.api_version(630)
 FDBError = fdb.FDBError
 
 ONE = b"\x01" + b"\x00" * 7
