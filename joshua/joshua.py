@@ -690,13 +690,14 @@ if __name__ == "__main__":
     parser_download.set_defaults(cmd=download_ensemble)
 
     arguments = parser.parse_args()
-    joshua_model.open(arguments.cluster_file, dir_path=arguments.dir_path)
 
     if "cmd" not in arguments:
         parser.print_usage()
         exit(-1)
 
-    # Running everything (esp ctypes blocking calls) in a thread makes the program much more responsive to KeyboardInterrupt
+    joshua_model.open(arguments.cluster_file, dir_path=arguments.dir_path)
+    # Running everything (esp ctypes blocking calls) in a thread
+    # makes the program much more responsive to KeyboardInterrupt
     t = threading.Thread(target=arguments.cmd, args=(), kwargs=vars(arguments))
     t.daemon = True
     t.start()
