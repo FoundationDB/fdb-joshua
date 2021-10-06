@@ -73,8 +73,8 @@ RUN source /opt/rh/devtoolset-8/enable && \
 
 ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
 ARG OLD_TLS_LIBRARY_DIR=/app/deploy/runtime/.tls_5_1/
-ARG FDB_VERSION="6.2.29"
-ARG OLD_FDB_VERSIONS="6.3.15"
+ARG FDB_VERSION="6.3.18"
+ARG OLD_FDB_VERSIONS="6.3.18"
 RUN if [ "$(uname -p)" == "x86_64" ]; then \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  ${OLD_TLS_LIBRARY_DIR} \
