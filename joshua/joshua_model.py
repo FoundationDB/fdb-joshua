@@ -595,13 +595,21 @@ def _add(tr: fdb.Transaction, ensemble_id: str, counter: str, value: int) -> Non
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], byte_val)
 
 
-def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
-    value = tr.snapshot.get(dir_all_ensembles[ensemble_id]["count"][counter])
+def _get_counter_impl(tr: fdb.Transaction, ensemble_id: str, counter: str, snapshot: bool) -> int:
+    if snapshot:
+        value = tr.snapshot.get(dir_all_ensembles[ensemble_id]["count"][counter])
+    else:
+        value = tr.get(dir_all_ensembles[ensemble_id]["count"][counter])
     if value == None:
         return 0
     else:
         return struct.unpack("<Q", b"" + value)[0]
 
+def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
+    return _get_counter_impl(tr, ensemble_id, counter, True)
+
+def _get_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
+    return _get_counter_impl(tr, ensemble_id, counter, False)
 
 def _get_seeds_and_heartbeats(
     ensemble_id: str, tr: fdb.Transaction
@@ -768,9 +776,9 @@ def _insert_results(
         results = dir_ensemble_results_pass
 
     if max_runs > 0:
-        # This is a snapshot read so that two insertions don't conflict.
-        ended = _get_snap_counter(tr, ensemble_id, "ended")
-        if ended >= max_runs:
+        started = _get_counter(tr, ensemble_id, "started")
+        ended = _get_counter(tr, ensemble_id, "ended")
+        if ended >= max(max_runs, started):
             _stop_ensemble(tr, ensemble_id, sanity)
 
     if duration:
