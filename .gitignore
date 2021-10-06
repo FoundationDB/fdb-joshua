@@ -4,6 +4,7 @@
 .testagents
 MANIFEST
 .idea/
+venv/
 
 # Build things
 .cicd
