@@ -15,7 +15,7 @@ import time
 
 import fdb
 
-fdb.api_version(520)
+fdb.api_version(630)
 
 
 #################### Fixtures ####################
