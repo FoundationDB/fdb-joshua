@@ -81,9 +81,12 @@ tar czf test.tar.gz joshua_test joshua_timeout
 
 mkdir /tmp/work
 
-failures=0
+total=0
+pass=0
+fail=0
 
 for test in one_agent two_agent two_agent_kill_one; do
+    (( total++ ))
     echo "=== TEST: ${test} ==="
     python -m joshua.joshua start --tarball test.tar.gz --max-runs 6
     python -m joshua.joshua list
@@ -104,15 +107,17 @@ for test in one_agent two_agent two_agent_kill_one; do
     done
     if [ $pass -eq $ended ] && [ $ended -eq $max_runs ]; then
 	echo "Pass: pass:$pass ended:$ended max_runs:$max_runs"
+	(( pass++ ))
     else
 	echo "Fail: pass:$pass ended:$ended max_runs:$max_runs"
-	(( failures++ ))
+	(( fail++ ))
     fi
     python -m joshua.joshua delete -y ${ensemble}
 done
 
 # timeout test
 for test in two_agent; do
+    (( total++ ))
     echo "=== TEST: ${test} TIMEOUT ==="
     python -m joshua.joshua start --tarball test.tar.gz --max-runs 6 --timeout 2
     python -m joshua.joshua list
@@ -130,14 +135,17 @@ for test in two_agent; do
     done
     if [ $fail -eq $ended ] && [ $fail -eq 2 ]; then
 	echo "Pass: fail:$fail == ended:$ended"
+	(( pass++ ))
     else
 	echo "Fail: fail:$fail != ended:$ended or fail:$fail != 2"
-	(( failures++ ))
+	(( fail++ ))
     fi
     python -m joshua.joshua delete -y ${ensemble}
 done
 
 kill -9 ${fdbpid}
 
-exit $failures
+echo "${pass} / ${total} passed"
+
+exit $fail
 

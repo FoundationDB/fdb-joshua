@@ -50,6 +50,7 @@ fdb.api_version(630)
 FDBError = fdb.FDBError
 
 ONE = b"\x01" + b"\x00" * 7
+NEGATIVE_ONE = struct.pack('<q', -1)
 TIMESTAMP_FMT = "%Y%m%d-%H%M%S"
 
 TIMEDELTA_REGEX1 = re.compile(
@@ -590,6 +591,10 @@ def _increment(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], ONE)
 
 
+def _decrement(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:
+     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], NEGATIVE_ONE)
+
+
 def _add(tr: fdb.Transaction, ensemble_id: str, counter: str, value: int) -> None:
     byte_val = struct.pack("<Q", value)
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], byte_val)
@@ -658,6 +663,9 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
                     _get_hostname(ensemble_id, max_seed, tr)
                 )
             )
+
+            # ignore cancelled test
+            _decrement(tr, ensemble_id, "started")
 
             # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
             # We only want one agent to succeed in taking over for the dead agent's run/seed.
