@@ -31,7 +31,7 @@ RUN chmod +x \
     /tools/joshua_model.py
 
 # libfdb_c.so
-ARG FDB_VERSION="6.2.29"
+ARG FDB_VERSION="6.3.18"
 RUN curl -Ls https://www.foundationdb.org/downloads/${FDB_VERSION}/linux/libfdb_c_${FDB_VERSION}.so \
          -o /lib64/libfdb_c.so && \
     chmod +x /lib64/libfdb_c.so
@@ -40,7 +40,7 @@ ENV LD_LIBRARY_PATH="/lib64:$LD_LIBRARY_PATH"
 
 # FDB python binding
 RUN source /opt/rh/rh-python38/enable && \
-    pip3 install foundationdb==6.2.10
+    pip3 install foundationdb==6.3.18
 
 ENV BATCH_SIZE=1
 ENV MAX_JOBS=10
