@@ -1,5 +1,5 @@
 attrs==20.3.0
-foundationdb==6.3.12
+foundationdb==6.3.18
 importlib-metadata==4.0.1
 iniconfig==1.1.1
 lxml==4.6.3
