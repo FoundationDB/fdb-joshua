@@ -168,12 +168,15 @@ def test_dead_agent(tmp_path, empty_ensemble):
     # simulate another agent dying after starting a test
     assert joshua_model.try_starting_test(ensemble_id, 12345)
 
+    # agent needs to wait for >10 seconds in order to detect the dead agent.
+    # in the real deployment, agent should exit early
+    # and scaler should spin up another one if necessary.
     agent = threading.Thread(
         target=joshua_agent.agent,
         args=(),
         kwargs={
             "work_dir": tmp_path,
-            "agent_idle_timeout": 1,
+            "agent_idle_timeout": 15,
         },
     )
     agent.setDaemon(True)
