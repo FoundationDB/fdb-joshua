@@ -43,6 +43,12 @@ while true; do
             new_jobs=$((max_jobs - num_jobs))
         fi
 
+        if [ -n "${MAX_NEW_JOBS}" ]; then
+            if [ "${new_jobs}" -gt "${MAX_NEW_JOBS}" ]; then
+                new_jobs=${MAX_NEW_JOBS}
+            fi
+        fi
+
         idx=0
         while [ $idx -lt ${new_jobs} ]; do
             if [ -e /tmp/joshua-agent.yaml ]; then
