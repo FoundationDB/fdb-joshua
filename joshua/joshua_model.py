@@ -664,16 +664,20 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
                 )
             )
 
-            # ignore cancelled test
-            _decrement(tr, ensemble_id, "started")
-
-            # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
+            # Without this, an arbitrary number of agents could steal this run/seed.
             # We only want one agent to succeed in taking over for the dead agent's run/seed.
-            tr.add_read_conflict_key(
+            # Added a write conflict key so that only one agent could read the key
+            # and do clean up operations
+            tr.add_write_conflict_key(
                 dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]
             )
-            del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
-            del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
+
+            if dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]:
+                # ignore cancelled test
+                _decrement(tr, ensemble_id, "started")
+                del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
+                del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
+
             return True
         return False
     else:
