@@ -664,20 +664,13 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
                 )
             )
 
-            # Without this, an arbitrary number of agents could steal this run/seed.
+            # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
             # We only want one agent to succeed in taking over for the dead agent's run/seed.
-            # Added a write conflict key so that only one agent could read the key
-            # and do clean up operations
-            tr.add_write_conflict_key(
+            tr.add_read_conflict_key(
                 dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]
             )
-
-            if dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]:
-                # ignore cancelled test
-                _decrement(tr, ensemble_id, "started")
-                del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
-                del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
-
+            del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
+            del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
             return True
         return False
     else:
@@ -998,3 +991,14 @@ def get_agent_failures(tr, time_start=None, time_end=None):
         failures.append((info, msg))
 
     return failures
+
+@transactional
+def cancel_agent_cleanup(tr, ensemble_id):
+    """
+    Clean-up method for when an agent takes a job but gets cancelled
+    """
+
+    # TODO(qhoang) let's try this but there must be a better way
+    # When an agent is cancelled, it has already incremented the __started__ counter
+    # but will never get to increment the __ended__ counter
+    _decrement(tr, ensemble_id, "started")
