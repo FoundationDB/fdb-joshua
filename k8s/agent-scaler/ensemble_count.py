@@ -19,6 +19,7 @@
 # limitations under the License.
 #
 
+import os
 import argparse
 import joshua_model
 
@@ -43,6 +44,7 @@ def queue_size():
 
 
 if __name__ == "__main__":
+    name_space = os.environ.get("JOSHUA_NAMESPACE", "joshua")
     parser = argparse.ArgumentParser(description="How about a nice game of chess?")
     parser.add_argument(
         "-C",
@@ -55,10 +57,10 @@ if __name__ == "__main__":
         "-D",
         "--dir-path",
         nargs="+",
-        default=("joshua",),
+        default=(name_space,),
         help="top-level directory path in which joshua operates",
     )
 
     arguments = parser.parse_args()
-    joshua_model.open(arguments.cluster_file, dir_path=arguments.dir_path)
+    joshua_model.open(arguments.cluster_file, arguments.dir_path)
     queue_size()
