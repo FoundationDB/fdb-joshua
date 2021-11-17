@@ -877,6 +877,7 @@ if __name__ == "__main__":
 
     stop_file = os.environ.get("AGENT_STOPFILE", None)
 
+    name_space = os.environ.get("JOSHUA_NAMESPACE", "joshua")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-C", "--cluster-file", default=None, help="Cluster file for Joshua database"
@@ -885,7 +886,7 @@ if __name__ == "__main__":
         "-D",
         "--dir-path",
         nargs="+",
-        default=("joshua",),
+        default=(name_space,),
         help="top-level directory path in which joshua operates",
     )
     parser.add_argument(
