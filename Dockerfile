@@ -92,7 +92,6 @@ RUN if [ "$(uname -p)" == "x86_64" ]; then \
 ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=300
 
-USER joshua
 CMD source /opt/rh/devtoolset-8/enable && \
     source /opt/rh/rh-python38/enable && \
     source /opt/rh/rh-ruby27/enable && \
