@@ -16,8 +16,8 @@ jobs:
       - name: Install fdb and dependencies
         run: |
           sudo mkdir -p /var/lib/foundationdb/data
-          wget https://www.foundationdb.org/downloads/6.3.18/ubuntu/installers/foundationdb-clients_6.3.18-1_amd64.deb --no-check-certificate
-          wget https://www.foundationdb.org/downloads/6.3.18/ubuntu/installers/foundationdb-server_6.3.18-1_amd64.deb --no-check-certificate
+          wget https://github.com/apple/foundationdb/releases/download/6.3.18/foundationdb-clients_6.3.18-1_amd64.deb
+          wget https://github.com/apple/foundationdb/releases/download/6.3.18/foundationdb-server_6.3.18-1_amd64.deb
           echo "d18ad92f081827e723fe1e554948a587a0b6069f95f050564821b3ecdb8b4daf  foundationdb-clients_6.3.18-1_amd64.deb" >> checks.txt
           echo "d5e452b71f85d6e5d16a2d707b8699a4ae1addeaaa456f002007b81d30bb39bf  foundationdb-server_6.3.18-1_amd64.deb" >> checks.txt
           sha256sum -c checks.txt && sudo dpkg -i *.deb

@@ -32,7 +32,7 @@ RUN chmod +x \
 
 # libfdb_c.so
 ARG FDB_VERSION="6.3.18"
-RUN curl -Ls https://www.foundationdb.org/downloads/${FDB_VERSION}/linux/libfdb_c_${FDB_VERSION}.so \
+RUN curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so \
          -o /lib64/libfdb_c.so && \
     chmod +x /lib64/libfdb_c.so
 
