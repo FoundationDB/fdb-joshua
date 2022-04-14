@@ -658,6 +658,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
             tr.add_read_conflict_key(
                 dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]
             )
+            del tr[dir_ensemble_incomplete[ensemble_id][max_seed]]
             del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
             del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
             return True
@@ -750,6 +751,7 @@ def _insert_results(
     if tr[dir_ensemble_incomplete[ensemble_id][seed]] == None:
         # Test already completed
         return False
+    del tr[dir_ensemble_incomplete[ensemble_id][seed]]
     del tr[dir_ensemble_incomplete[ensemble_id][seed].range()]
     del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]]
 
