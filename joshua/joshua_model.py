@@ -510,6 +510,8 @@ def _stop_ensemble(tr, ensemble_id, sanity=False):
         )
 
     del tr[dir[ensemble_id]]
+    del tr[dir_ensemble_incomplete[ensemble_id]]
+    del tr[dir_ensemble_incomplete[ensemble_id].range()]
     tr.add(changes, ONE)
 
 
