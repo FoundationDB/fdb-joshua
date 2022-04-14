@@ -417,6 +417,28 @@ class AsyncEnsemble:
         work_dir=None,
         timeout_command_timeout=60,
     ):
+        try:
+            self._run_ensemble(
+                ensemble,
+                seed,
+                save_on=save_on,
+                sanity=sanity,
+                work_dir=work_dir,
+                timeout_command_timeout=timeout_command_timeout,
+            )
+        except BaseException as e:
+            print(e)
+            self._retcode = e
+
+    def _run_ensemble(
+        self,
+        ensemble,
+        seed,
+        save_on="FAILURE",
+        sanity=False,
+        work_dir=None,
+        timeout_command_timeout=60,
+    ):
         """
         Actually run the ensemble's test script.
         :param ensemble: ensemble ID
@@ -642,6 +664,8 @@ def run_ensemble(
                 asyncEnsemble.cancel()
         else:
             assert asyncEnsemble._retcode is not None
+            if not isinstance(asyncEnsemble._retcode, int):
+                raise asyncEnsemble._retcode
             return asyncEnsemble._retcode
 
 
