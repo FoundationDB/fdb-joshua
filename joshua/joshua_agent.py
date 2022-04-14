@@ -150,6 +150,16 @@ def agent_init(work_dir):
     return True
 
 
+def sanitize_for_file_name(name):
+    """
+    >>> sanitize_for_file_name('joshua')
+    'joshua'
+    >>> sanitize_for_file_name('joshua/joshua')
+    'joshua-joshua'
+    """
+    return "".join(a if a != "/" else "-" for a in name)
+
+
 def ensemble_dir(ensemble_id=None, basepath=None):
     if not basepath:
         raise JoshuaError(
@@ -160,7 +170,10 @@ def ensemble_dir(ensemble_id=None, basepath=None):
             + ")"
         )
     return os.path.join(
-        *((basepath, "ensembles") + ((ensemble_id,) if ensemble_id else ()))
+        *(
+            (basepath, "ensembles")
+            + ((sanitize_for_file_name(ensemble_id),) if ensemble_id else ())
+        )
     )
 
 

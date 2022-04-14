@@ -140,7 +140,7 @@ def test_agent(tmp_path, empty_ensemble):
     """
     assert len(joshua_model.list_active_ensembles()) == 0
     ensemble_id = joshua_model.create_ensemble(
-        "joshua", {"max_runs": 1}, open(empty_ensemble, "rb")
+        "joshua/joshua", {"max_runs": 1}, open(empty_ensemble, "rb")
     )
     agent = threading.Thread(
         target=joshua_agent.agent,
@@ -152,7 +152,7 @@ def test_agent(tmp_path, empty_ensemble):
     )
     agent.setDaemon(True)
     agent.start()
-    joshua.tail_ensemble(ensemble_id, username="joshua")
+    joshua.tail_ensemble(ensemble_id, username="joshua/joshua")
     agent.join()
 
 
