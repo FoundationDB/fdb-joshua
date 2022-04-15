@@ -140,7 +140,7 @@ def test_agent(tmp_path, empty_ensemble):
     """
     assert len(joshua_model.list_active_ensembles()) == 0
     ensemble_id = joshua_model.create_ensemble(
-        "joshua", {"max_runs": 1}, open(empty_ensemble, "rb")
+        "joshua/joshua", {"max_runs": 1}, open(empty_ensemble, "rb")
     )
     agent = threading.Thread(
         target=joshua_agent.agent,
@@ -152,6 +152,32 @@ def test_agent(tmp_path, empty_ensemble):
     )
     agent.setDaemon(True)
     agent.start()
+    joshua.tail_ensemble(ensemble_id, username="joshua/joshua")
+    agent.join()
+
+
+def test_stop_ensemble(tmp_path, empty_ensemble):
+    """
+    :tmp_path: https://docs.pytest.org/en/stable/tmpdir.html
+    """
+    assert len(joshua_model.list_active_ensembles()) == 0
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1e12}, open(empty_ensemble, "rb")
+    )
+    agent = threading.Thread(
+        target=joshua_agent.agent,
+        args=(),
+        kwargs={
+            "work_dir": tmp_path,
+            "agent_idle_timeout": 1,
+        },
+    )
+    agent.setDaemon(True)
+    agent.start()
+    while len(joshua_model.show_in_progress(ensemble_id)) == 0:
+        time.sleep(0.001)
+    joshua.stop_ensemble(ensemble_id, username="joshua")
+    assert joshua_model.show_in_progress(ensemble_id) == []
     joshua.tail_ensemble(ensemble_id, username="joshua")
     agent.join()
 
