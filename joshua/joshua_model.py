@@ -630,7 +630,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
     policy tries not to overshoot max_runs by too much, but also accounts
     for the possibility that agents might die.
     """
-    props = _get_ensemble_properties(tr, ensemble_id, snapshot=True)
+    props = _get_ensemble_properties(tr, ensemble_id)
     started = props.get("started", 0)
     max_runs = props.get("max_runs", 0)
     # max_runs == 0 means run forever
