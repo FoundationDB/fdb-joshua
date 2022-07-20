@@ -69,6 +69,7 @@ INSTANCE_ID_ENV_VAR = "PLATFORM_SHORT_INSTANCE_ID"
 OLD_INSTANCE_ID_ENV_VAR = "SHORT_TASK_ID"
 HOSTNAME_ENV_VAR = "HOSTNAME"
 
+cluster_file = None
 db = None
 dir_top = None
 dir_ensembles = None
@@ -86,11 +87,12 @@ dir_sanity_changes = None
 dir_failures = None
 
 
-def open(cluster_file=None, dir_path=("joshua",)):
-    global db, dir_top, dir_ensembles, dir_active, dir_sanity, dir_all_ensembles, dir_ensemble_data, dir_ensemble_results
-    global dir_ensemble_results_pass, dir_ensemble_results_fail, dir_ensemble_incomplete, dir_ensemble_results_large
-    global dir_active_changes, dir_sanity_changes, dir_failures
+def open(c_file=None, dir_path=("joshua",)):
+    global cluster_file, db, dir_top, dir_ensembles, dir_active, dir_sanity, dir_all_ensembles, dir_ensemble_data
+    global dir_ensemble_results, dir_ensemble_results_pass, dir_ensemble_results_fail, dir_ensemble_incomplete
+    global dir_ensemble_results_large, dir_active_changes, dir_sanity_changes, dir_failures
 
+    cluster_file = c_file
     db = fdb.open(cluster_file)
     dir_top = create_or_open_top_path(db, dir_path)
     dir_ensembles = dir_top.create_or_open(db, "ensembles")

@@ -460,6 +460,7 @@ class AsyncEnsemble:
         properties = joshua_model.get_ensemble_properties(ensemble)
         compressed = properties.get("compressed", False)
         command = properties.get("test_command", "./joshua_test")
+        done_command = properties.get("end_command", "./joshua_done")
         timeout_command = properties.get("timeout_command", "./joshua_timeout")
         timeout_time = properties.get("timeout", None)
         fail_fast = properties.get("fail_fast", 0)
@@ -571,23 +572,29 @@ class AsyncEnsemble:
                 )
 
         # Write the output to the tmp directory so that it is picked up when we save (if we do so).
-        if should_save(retcode, save_on):
-            try:
-                to_write = os.path.join(where, "tmp", "console.log")
+        del_output_file = not should_save(retcode, save_on)
+        to_write = os.path.join(where, "tmp", "console.log")
+        try:
+            i = 0
+            while os.path.exists(to_write):
+                to_write = os.path.join(where, "tmp", "console-{0}.log".format(i))
+                i += 1
 
-                i = 0
-                while os.path.exists(to_write):
-                    to_write = os.path.join(where, "tmp", "console-{0}.log".format(i))
-                    i += 1
+            with open(to_write, "wb") as fout:
+                fout.write(output)
 
-                with open(to_write, "wb") as fout:
-                    fout.write(output)
+        except OSError as e:
+            # Could not write. Not fatal. Log and move on.
+            log("Could not write console output.")
+            log(traceback.format_exc())
+            log("Moving on...")
 
-            except OSError as e:
-                # Could not write. Not fatal. Log and move on.
-                log("Could not write console output.")
-                log(traceback.format_exc())
-                log("Moving on...")
+        done_args = [done_command, ensemble, seed, retcode, to_write]
+        if joshua_model.cluster_file is not None:
+            done_args.append(joshua_model.cluster_file)
+        subprocess.run(done_args, cwd=where, env=env)
+        if del_output_file:
+            os.unlink(to_write)
 
         cleanup(ensemble, where, seed, retcode, save_on, work_dir=work_dir)
 
