@@ -30,9 +30,11 @@ while true; do
 
     # get the current ensembles
     num_ensembles=$(python3 /tools/ensemble_count.py)
+    echo "${num_ensembles} ensembles in the queue"
 
     # get the current jobs
     num_jobs=$(kubectl get jobs -n "${namespace}" | wc -l)
+    echo "${num_jobs} jobs are running"
 
     # provision more jobs
     if [ "${num_ensembles}" -gt "${num_jobs}" ]; then
@@ -50,6 +52,7 @@ while true; do
         fi
 
         idx=0
+        echo "Starting ${new_jobs} jobs"
         while [ $idx -lt ${new_jobs} ]; do
             if [ -e /tmp/joshua-agent.yaml ]; then
                 rm -f /tmp/joshua-agent.yaml
@@ -68,9 +71,11 @@ while true; do
                 fi
             done
             # /tmp/joshua-agent.yaml contains up to $batch_size entries
+            echo "Starting a batch of ${i} jobs"
             kubectl apply -f /tmp/joshua-agent.yaml -n "${namespace}"
         done
     fi
+    echo "${new_jobs} jobs started"
 
     # check every check_delay seconds
     sleep "${check_delay}"
