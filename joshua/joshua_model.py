@@ -145,7 +145,7 @@ def transactional(func):
 def wrap_error(description):
     root = ET.Element("Test")
     ET.SubElement(root, "JoshuaError", {"Severity": "40", "ErrorMessage": description})
-    return ET.tostring(root) + "\n"
+    return ET.tostring(root) + b"\n"
 
 
 def wrap_message(info={}):
@@ -153,7 +153,7 @@ def wrap_message(info={}):
     attribs = {"Severity": "10"}
     attribs.update(info)
     ET.SubElement(root, "JoshuaMessage", attribs)
-    return ET.tostring(root) + "\n"
+    return ET.tostring(root) + b"\n"
 
 
 def get_hostname():
