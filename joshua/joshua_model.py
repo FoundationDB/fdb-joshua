@@ -32,6 +32,7 @@ import time
 import traceback
 import xml.etree.ElementTree as ET
 import zlib
+import boto3
 from collections import defaultdict
 from io import BytesIO
 from typing import Dict
@@ -145,7 +146,7 @@ def transactional(func):
 def wrap_error(description):
     root = ET.Element("Test")
     ET.SubElement(root, "JoshuaError", {"Severity": "40", "ErrorMessage": description})
-    return ET.tostring(root) + "\n"
+    return ET.tostring(root) + b"\n"
 
 
 def wrap_message(info={}):
@@ -153,7 +154,7 @@ def wrap_message(info={}):
     attribs = {"Severity": "10"}
     attribs.update(info)
     ET.SubElement(root, "JoshuaMessage", attribs)
-    return ET.tostring(root) + "\n"
+    return ET.tostring(root) + b"\n"
 
 
 def get_hostname():
@@ -405,13 +406,27 @@ def _create_ensemble(tr, ensemble_id, properties, sanity=False):
     tr.add(changes, ONE)
 
 
-def create_ensemble(userid, properties, tarball, sanity=False):
-    hash = get_hash(tarball)
+def create_ensemble(userid, properties, tarball, sanity=False, use_s3=False):
+    if use_s3:
+        # If S3, get the hash from ETag (md5)
+        # e.g.
+        # $ aws s3api head-object --bucket mybucket --key path/to/tarball --query ETag --output text
+        # "a7470bf1a0536f4fe8432c4392281027-7"
+        client = boto3.client('s3')
+        response = client.head_object(
+            Bucket=tarball.split('/')[2],
+            Key='/'.join(tarball.split('/')[3:])
+        )
+        hash = response['ETag'].replace('"', '')[:16]
+        properties["s3url"] = tarball
+    else:
+        hash = get_hash(tarball)
     timestamp = format_datetime(datetime.datetime.now(datetime.timezone.utc))
     ensemble_id = timestamp + "-" + userid + "-" + hash[:16]
     if "submitted" not in properties:
         properties["submitted"] = timestamp
-    _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
+    if not use_s3:
+        _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
     _create_ensemble(db, ensemble_id, properties, sanity)
     logger.debug(
         "created ensemble {}, properties: {}, sanity: {}".format(
@@ -554,8 +569,10 @@ def _delete_ensemble_data(tr, ensemble_id, sanity=False):
     if tr[dir[ensemble_id]] != None:
         del tr[dir[ensemble_id]]
 
-    # Delete the record that this ensemble exists.
-    _delete_blob(tr, dir_ensemble_data[ensemble_id])
+    properties = get_ensemble_properties(ensemble_id)
+    if "s3url" not in properties:
+        # Delete the record that this ensemble exists.
+        _delete_blob(tr, dir_ensemble_data[ensemble_id])
     del tr[dir_all_ensembles[ensemble_id].range()]
     del tr[dir_all_ensembles[ensemble_id]]
 
@@ -573,7 +590,19 @@ def delete_ensemble(ensemble_id, compressed=True, sanity=False):
 def get_ensemble_data(ensemble_id, outfile=None):
     if not outfile:
         outfile = BytesIO()
-    _read_blob(db, dir_ensemble_data[ensemble_id], outfile)
+    # Check if tarball is stored as a blob or passed through S3
+    properties = get_ensemble_properties(ensemble_id)
+    if "s3url" in properties:
+        # Retrieve tarball from S3
+        tarball = properties["s3url"]
+        client = boto3.client('s3')
+        response = client.get_object(
+            Bucket=tarball.split('/')[2],
+            Key='/'.join(tarball.split('/')[3:])
+        )
+        outfile.write(response['Body'].read())
+    else:
+        _read_blob(db, dir_ensemble_data[ensemble_id], outfile)
     return outfile
 
 
