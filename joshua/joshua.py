@@ -126,15 +126,21 @@ def start_ensemble(
     if command:
         properties["test_command"] = command
     print("Starting ensemble")
-    with open(tarball, "rb") as tarfile:
-        tarfile.seek(0, os.SEEK_END)
-        size = tarfile.tell()
-        tarfile.seek(0, os.SEEK_SET)
-        properties["data_size"] = size
-
+    # if s3 URL is passed, passthrough the URL
+    if tarball.startswith("s3://"):
         ensemble_id = joshua_model.create_ensemble(
-            username, properties, tarfile, sanity
+            username, properties, tarball, sanity, True
         )
+    else:
+        with open(tarball, "rb") as tarfile:
+            tarfile.seek(0, os.SEEK_END)
+            size = tarfile.tell()
+            tarfile.seek(0, os.SEEK_SET)
+            properties["data_size"] = size
+
+            ensemble_id = joshua_model.create_ensemble(
+                username, properties, tarfile, sanity, False
+            )
     print(format_ensemble(ensemble_id, properties))
     return str(ensemble_id)
 
