@@ -32,6 +32,7 @@ import threading
 import time
 import traceback
 import datetime
+from pprint import pprint
 
 import subprocess32 as subprocess
 import fdb
@@ -393,6 +394,39 @@ def cleanup(ensemble, where, seed, retcode=0, save_on="FAILURE", work_dir=None):
     # Clear the temporary directory.
     clear_directory(os.path.join(where, "tmp"))
 
+class AsyncDone:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._m_cancelled = False
+
+    def cancel(self):
+        with self._lock:
+            self._m_cancelled = True
+
+    def _cancelled(self):
+        with self._lock:
+            return self._m_cancelled
+
+    def run(self, command, cwd, env, ensemble, seed, sanity):
+        cmd_path = os.path.join(cwd, command[0])
+        if not os.path.exists(cmd_path):
+            log("{} doesn't exist".format(cmd_path))
+            return
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            env=env
+        )
+        while True:
+            getFileHandle().flush()
+            try:
+                process.communicate(timeout=1)
+                process.poll()
+                break
+            except subprocess.TimeoutExpired:
+                if self._cancelled():
+                    break
+                getFileHandle().write(".")
 
 class AsyncEnsemble:
     def __init__(self):
@@ -589,10 +623,19 @@ class AsyncEnsemble:
             log(traceback.format_exc())
             log("Moving on...")
 
-        done_args = [done_command, ensemble, seed, retcode, to_write]
+        done_args = [done_command, ensemble, str(seed), str(retcode), os.path.abspath(to_write)]
         if joshua_model.cluster_file is not None:
             done_args.append(joshua_model.cluster_file)
-        subprocess.run(done_args, cwd=where, env=env)
+
+        asyncDone = AsyncDone()
+        asyncDoneArgs = (done_args, where, env, ensemble, seed, sanity)
+        doneChild = threading.Thread(target=asyncDone.run, args=asyncDoneArgs)
+        doneChild.start()
+        while doneChild.is_alive():
+            doneChild.join(1.0)
+            if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
+                asyncDone.cancel()
+
         if del_output_file:
             os.unlink(to_write)
 
