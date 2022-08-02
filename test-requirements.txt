@@ -15,3 +15,4 @@ subprocess32==3.5.4
 toml==0.10.2
 typing-extensions==3.10.0.0
 zipp==3.4.1
+boto3==1.23.10
