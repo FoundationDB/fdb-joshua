@@ -12,6 +12,8 @@ import tempfile
 import threading
 import threading
 import time
+import boto3
+from moto import mock_s3
 
 import fdb
 
@@ -133,6 +135,58 @@ def test_create_ensemble():
     ensemble_id = joshua_model.create_ensemble("joshua", {}, io.BytesIO())
     assert len(joshua_model.list_active_ensembles()) > 0
 
+def test_validate_ensemble(tmp_path, empty_ensemble):
+    outfile = str(tmp_path) + "/" + "outfile"
+    assert len(joshua_model.list_active_ensembles()) == 0
+
+    # create ensemble
+    with open(empty_ensemble, "rb") as fin:
+        orighash = joshua_model.get_hash(fin)
+        assert orighash
+        print(orighash)
+        ensemble_id = joshua_model.create_ensemble("joshua", {}, fin)
+        assert len(joshua_model.list_active_ensembles()) > 0
+
+    # get ensemble
+    with open(outfile, "wb") as fout:
+        joshua_model.get_ensemble_data(ensemble_id=ensemble_id, outfile=fout)
+    with open(outfile, "rb") as fout:
+        newhash = joshua_model.get_hash(fout)
+    assert newhash
+    print(newhash)
+    assert orighash == newhash
+
+@mock_s3
+def test_validate_ensemble_s3(tmp_path, empty_ensemble):
+    bucket="test_bucket"
+    ensemble_path="tests" + "/" + empty_ensemble
+    s3url="s3://" + bucket + "/" + ensemble_path
+    outfile = str(tmp_path) + "/" + "outfile"
+
+    with open(empty_ensemble, "rb") as fin:
+        orighash = joshua_model.get_hash(fin)
+        assert orighash
+        print(orighash)
+
+    # upload ensemble to s3
+    s3 = boto3.resource("s3")
+    s3.create_bucket(Bucket="test_bucket")
+    client = boto3.client("s3")
+    _ = client.upload_file(empty_ensemble, bucket, ensemble_path)
+
+    # create ensemble
+    assert len(joshua_model.list_active_ensembles()) == 0
+    ensemble_id = joshua_model.create_ensemble("joshua", {}, s3url, False, True)
+    assert len(joshua_model.list_active_ensembles()) > 0
+
+    # get ensemble
+    with open(outfile, "wb") as fout:
+        joshua_model.get_ensemble_data(ensemble_id=ensemble_id, outfile=fout)
+    with open(outfile, "rb") as fout:
+        newhash = joshua_model.get_hash(fout)
+    assert newhash
+    print(newhash)
+    assert orighash == newhash
 
 def test_agent(tmp_path, empty_ensemble):
     """
