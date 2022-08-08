@@ -407,7 +407,7 @@ class AsyncDone:
         with self._lock:
             return self._m_cancelled
 
-    def run(self, command, cwd, env, ensemble, seed, sanity):
+    def run(self, command, cwd, env):
         cmd_path = os.path.join(cwd, command[0])
         if not os.path.exists(cmd_path):
             log("{} doesn't exist".format(cmd_path))
@@ -494,7 +494,7 @@ class AsyncEnsemble:
         properties = joshua_model.get_ensemble_properties(ensemble)
         compressed = properties.get("compressed", False)
         command = properties.get("test_command", "./joshua_test")
-        done_command = properties.get("end_command", "./joshua_done")
+        done_command = properties.get("done_command", "./joshua_done")
         timeout_command = properties.get("timeout_command", "./joshua_timeout")
         timeout_time = properties.get("timeout", None)
         fail_fast = properties.get("fail_fast", 0)
