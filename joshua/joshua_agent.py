@@ -628,7 +628,7 @@ class AsyncEnsemble:
             done_args.append(joshua_model.cluster_file)
 
         asyncDone = AsyncDone()
-        asyncDoneArgs = (done_args, where, env, ensemble, seed, sanity)
+        asyncDoneArgs = (done_args, where, env, list(joshua_model.get_application_dir(ensemble)).join(","), ensemble, seed, sanity)
         doneChild = threading.Thread(target=asyncDone.run, args=asyncDoneArgs)
         doneChild.start()
         while doneChild.is_alive():
