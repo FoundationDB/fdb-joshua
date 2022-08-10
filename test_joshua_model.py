@@ -403,7 +403,7 @@ def verify_application_state(tr, ensemble, num_runs):
 
 @fdb.transactional
 def verify_application_state_deleted(tr, ensemble):
-    assert not fdb.directory.exists(joshua_model.get_application_dir(ensemble))
+    assert not fdb.directory.exists(tr, joshua_model.get_application_dir(ensemble))
 
 
 def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
