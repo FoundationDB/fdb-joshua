@@ -401,6 +401,11 @@ def verify_application_state(tr, ensemble, num_runs):
     assert count >= num_runs
 
 
+@fdb.transactional
+def verify_application_state_deleted(tr, ensemble):
+    assert not fdb.directory.exists(joshua_model.get_application_dir(ensemble))
+
+
 def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
     max_runs: int = random.randint(1, 32)
     ensemble_id = joshua_model.create_ensemble('joshua', {"max_runs": max_runs},
@@ -420,6 +425,8 @@ def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
     for agent in agents:
         agent.join()
     verify_application_state(joshua_model.db, ensemble_id, max_runs)
+    joshua_model.delete_ensemble(ensemble_id)
+    verify_application_state_deleted(joshua_model.db, ensemble_id)
 
 
 class ThreadSafeCounter:
