@@ -399,7 +399,7 @@ def verify_application_state(tr, ensemble, num_runs):
 
 
 def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
-    max_runs: int = int(math.floor(random.uniform(1, 32))
+    max_runs: int = random.randint(1, 32)
     ensemble_id = joshua_model.create_ensemble('joshua', {"max_runs": max_runs},
                                                open(empty_ensemble_joshua_done, 'rb'))
     agents = []
