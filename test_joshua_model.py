@@ -395,7 +395,10 @@ def verify_application_state(tr, ensemble, num_runs):
     count = 0
     for _, _ in tr[ensemble_dir.range()]:
         count += 1
-    assert count == num_runs
+    # count can be larger than max_runs: joshua can run more tests
+    # than max_runs. In addition, a test might finish but not report
+    # back
+    assert count >= num_runs
 
 
 def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
