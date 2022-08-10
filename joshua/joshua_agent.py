@@ -623,12 +623,16 @@ class AsyncEnsemble:
             log(traceback.format_exc())
             log("Moving on...")
 
-        done_args = [done_command, ensemble, str(seed), str(retcode), os.path.abspath(to_write)]
-        if joshua_model.cluster_file is not None:
-            done_args.append(joshua_model.cluster_file)
+        done_args = [done_command,
+                     ensemble,
+                     ",".join(list(joshua_model.get_application_dir(ensemble))),
+                     str(seed),
+                     str(retcode),
+                     os.path.abspath(to_write)]
+        done_args.append(joshua_model.cluster_file)
 
         asyncDone = AsyncDone()
-        asyncDoneArgs = (done_args, where, env, list(joshua_model.get_application_dir(ensemble)).join(","), ensemble, seed, sanity)
+        asyncDoneArgs = (done_args, where, env)
         doneChild = threading.Thread(target=asyncDone.run, args=asyncDoneArgs)
         doneChild.start()
         while doneChild.is_alive():
