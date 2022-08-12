@@ -32,6 +32,7 @@ import threading
 import time
 import traceback
 import datetime
+from pprint import pprint
 
 import subprocess32 as subprocess
 import fdb
@@ -393,6 +394,39 @@ def cleanup(ensemble, where, seed, retcode=0, save_on="FAILURE", work_dir=None):
     # Clear the temporary directory.
     clear_directory(os.path.join(where, "tmp"))
 
+class AsyncDone:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._m_cancelled = False
+
+    def cancel(self):
+        with self._lock:
+            self._m_cancelled = True
+
+    def _cancelled(self):
+        with self._lock:
+            return self._m_cancelled
+
+    def run(self, command, cwd, env):
+        cmd_path = os.path.join(cwd, command[0])
+        if not os.path.exists(cmd_path):
+            log("{} doesn't exist".format(cmd_path))
+            return
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            env=env
+        )
+        while True:
+            getFileHandle().flush()
+            try:
+                process.communicate(timeout=1)
+                process.poll()
+                break
+            except subprocess.TimeoutExpired:
+                if self._cancelled():
+                    break
+                getFileHandle().write(".")
 
 class AsyncEnsemble:
     def __init__(self):
@@ -460,6 +494,7 @@ class AsyncEnsemble:
         properties = joshua_model.get_ensemble_properties(ensemble)
         compressed = properties.get("compressed", False)
         command = properties.get("test_command", "./joshua_test")
+        done_command = properties.get("done_command", "./joshua_done")
         timeout_command = properties.get("timeout_command", "./joshua_timeout")
         timeout_time = properties.get("timeout", None)
         fail_fast = properties.get("fail_fast", 0)
@@ -571,23 +606,42 @@ class AsyncEnsemble:
                 )
 
         # Write the output to the tmp directory so that it is picked up when we save (if we do so).
-        if should_save(retcode, save_on):
-            try:
-                to_write = os.path.join(where, "tmp", "console.log")
+        del_output_file = not should_save(retcode, save_on)
+        to_write = os.path.join(where, "tmp", "console.log")
+        try:
+            i = 0
+            while os.path.exists(to_write):
+                to_write = os.path.join(where, "tmp", "console-{0}.log".format(i))
+                i += 1
 
-                i = 0
-                while os.path.exists(to_write):
-                    to_write = os.path.join(where, "tmp", "console-{0}.log".format(i))
-                    i += 1
+            with open(to_write, "wb") as fout:
+                fout.write(output)
 
-                with open(to_write, "wb") as fout:
-                    fout.write(output)
+        except OSError as e:
+            # Could not write. Not fatal. Log and move on.
+            log("Could not write console output.")
+            log(traceback.format_exc())
+            log("Moving on...")
 
-            except OSError as e:
-                # Could not write. Not fatal. Log and move on.
-                log("Could not write console output.")
-                log(traceback.format_exc())
-                log("Moving on...")
+        done_args = [done_command,
+                     ensemble,
+                     ",".join(list(joshua_model.get_application_dir(ensemble))),
+                     str(seed),
+                     str(retcode),
+                     os.path.abspath(to_write)]
+        done_args.append(joshua_model.cluster_file)
+
+        asyncDone = AsyncDone()
+        asyncDoneArgs = (done_args, where, env)
+        doneChild = threading.Thread(target=asyncDone.run, args=asyncDoneArgs)
+        doneChild.start()
+        while doneChild.is_alive():
+            doneChild.join(1.0)
+            if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
+                asyncDone.cancel()
+
+        if del_output_file:
+            os.unlink(to_write)
 
         cleanup(ensemble, where, seed, retcode, save_on, work_dir=work_dir)
 

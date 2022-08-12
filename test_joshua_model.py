@@ -2,8 +2,11 @@ import io
 import joshua.joshua as joshua
 import joshua.joshua_agent as joshua_agent
 import joshua.joshua_model as joshua_model
+import math
 import os
+import pathlib
 import pytest
+import random
 import shutil
 import socket
 import subprocess
@@ -14,6 +17,8 @@ import threading
 import time
 import boto3
 from moto import mock_s3
+
+from typing import BinaryIO
 
 import fdb
 
@@ -32,24 +37,42 @@ def getFreePort():
     s.close()
     return result
 
+class EnsembleFactory:
+    def __init__(self, tmp_path):
+        self.file_name = os.path.join(tmp_path, "ensemble.tar.gz")
+        self.ensemble = tarfile.open(self.file_name, "w:gz")
+
+    @staticmethod
+    def with_script(tmp_path, script_contents):
+        factory = EnsembleFactory(tmp_path)
+        factory.add_bash_script("joshua_test", script_contents)
+        factory.add_bash_script("joshua_timeout", script_contents)
+        return factory
+
+    def add_bash_script(self, name, contents):
+        script = "#!/bin/bash\n{}".format(contents).encode("utf-8")
+        entry = tarfile.TarInfo(name)
+        entry.mode = 0o755
+        entry.size = len(script)
+        self.ensemble.addfile(entry, io.BytesIO(script))
+
+    def add_executable(self, name, f: BinaryIO):
+        contents: bytes = f.read()
+        entry = tarfile.TarInfo(name)
+        entry.mode = 0o755
+        entry.size = len(contents)
+        self.ensemble.addfile(entry, io.BytesIO(contents))
+
+    def done(self) -> None:
+        self.ensemble.close()
 
 def empty_ensemble_factory(tmp_path, script_contents):
     """
     Returns a filename whose contents is a tarball containing a joshua_test (with script_contents) and joshua_timeout
     """
-    ensemble_file_name = os.path.join(tmp_path, "ensemble.tar.gz")
-    ensemble = tarfile.open(ensemble_file_name, "w:gz")
-    script = "#!/bin/bash\n{}".format(script_contents).encode("utf-8")
-    joshua_test = tarfile.TarInfo("joshua_test")
-    joshua_test.mode = 0o755
-    joshua_test.size = len(script)
-    joshua_timeout = tarfile.TarInfo("joshua_timeout")
-    joshua_timeout.mode = 0o755
-    joshua_timeout.size = len(script)
-    ensemble.addfile(joshua_test, io.BytesIO(script))
-    ensemble.addfile(joshua_timeout, io.BytesIO(script))
-    ensemble.close()
-    return ensemble_file_name
+    factory = EnsembleFactory.with_script(tmp_path, script_contents)
+    factory.done()
+    return factory.file_name
 
 
 @pytest.fixture
@@ -74,6 +97,15 @@ def empty_ensemble_fail(tmp_path):
     Returns a filename whose contents is a tarball containing a failing joshua_test and joshua_timeout
     """
     yield empty_ensemble_factory(tmp_path, "false")
+
+@pytest.fixture
+def empty_ensemble_joshua_done(tmp_path):
+    factory = EnsembleFactory.with_script(tmp_path, "true")
+    factory.add_bash_script('joshua_done', './joshua_done_test.py $2 $6')
+    with pathlib.Path(__file__).parent.joinpath('joshua_done_test.py').open('rb') as f:
+        factory.add_executable("joshua_done_test.py", f)
+    factory.done()
+    yield factory.file_name
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -407,6 +439,48 @@ def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
 
     for agent in agents:
         agent.join()
+
+
+@fdb.transactional
+def verify_application_state(tr, ensemble, num_runs):
+    dir_path = joshua_model.get_application_dir(ensemble)
+    print('dir_path = ({})'.format(",".join(list(dir_path))))
+    ensemble_dir = fdb.directory.open(tr, dir_path)
+    count = 0
+    for _, _ in tr[ensemble_dir.range()]:
+        count += 1
+    # count can be larger than max_runs: joshua can run more tests
+    # than max_runs. In addition, a test might finish but not report
+    # back
+    assert count >= num_runs
+
+
+@fdb.transactional
+def verify_application_state_deleted(tr, ensemble):
+    assert not fdb.directory.exists(tr, joshua_model.get_application_dir(ensemble))
+
+
+def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
+    max_runs: int = random.randint(1, 32)
+    ensemble_id = joshua_model.create_ensemble('joshua', {"max_runs": max_runs},
+                                               open(empty_ensemble_joshua_done, 'rb'))
+    agents = []
+    for rank in range(10):
+        agent = threading.Thread(
+            target=joshua_agent.agent,
+            args=(),
+            kwargs={
+                "work_dir": os.path.join(tmp_path, str(rank)),
+                "agent_idle_timeout": 1,
+            },)
+        agent.start()
+        agents.append(agent)
+    # wait for agents to finish
+    for agent in agents:
+        agent.join()
+    verify_application_state(joshua_model.db, ensemble_id, max_runs)
+    joshua_model.delete_ensemble(ensemble_id)
+    verify_application_state_deleted(joshua_model.db, ensemble_id)
 
 
 class ThreadSafeCounter:
