@@ -32,6 +32,7 @@ import time
 import traceback
 import xml.etree.ElementTree as ET
 import zlib
+import boto3
 from collections import defaultdict
 from io import BytesIO
 from typing import Dict
@@ -69,6 +70,7 @@ INSTANCE_ID_ENV_VAR = "PLATFORM_SHORT_INSTANCE_ID"
 OLD_INSTANCE_ID_ENV_VAR = "SHORT_TASK_ID"
 HOSTNAME_ENV_VAR = "HOSTNAME"
 
+cluster_file = None
 db = None
 dir_top = None
 dir_ensembles = None
@@ -81,16 +83,18 @@ dir_ensemble_results_pass = None
 dir_ensemble_results_fail = None
 dir_ensemble_incomplete = None
 dir_ensemble_results_large = None
+dir_ensemble_results_application = None
 dir_active_changes = None
 dir_sanity_changes = None
 dir_failures = None
 
 
-def open(cluster_file=None, dir_path=("joshua",)):
-    global db, dir_top, dir_ensembles, dir_active, dir_sanity, dir_all_ensembles, dir_ensemble_data, dir_ensemble_results
-    global dir_ensemble_results_pass, dir_ensemble_results_fail, dir_ensemble_incomplete, dir_ensemble_results_large
-    global dir_active_changes, dir_sanity_changes, dir_failures
+def open(c_file=None, dir_path=("joshua",)):
+    global cluster_file, db, dir_top, dir_ensembles, dir_active, dir_sanity, dir_all_ensembles, dir_ensemble_data
+    global dir_ensemble_results, dir_ensemble_results_pass, dir_ensemble_results_fail, dir_ensemble_incomplete
+    global dir_ensemble_results_large, dir_ensemble_results_application, dir_active_changes, dir_sanity_changes, dir_failures
 
+    cluster_file = c_file
     db = fdb.open(cluster_file)
     dir_top = create_or_open_top_path(db, dir_path)
     dir_ensembles = dir_top.create_or_open(db, "ensembles")
@@ -103,10 +107,15 @@ def open(cluster_file=None, dir_path=("joshua",)):
     dir_ensemble_results_pass = dir_ensemble_results.create_or_open(db, "pass")
     dir_ensemble_results_fail = dir_ensemble_results.create_or_open(db, "fail")
     dir_ensemble_results_large = dir_ensemble_results.create_or_open(db, "large")
+    dir_ensemble_results_application = dir_ensemble_results.create_or_open(db, "application")
     dir_failures = dir_top.create_or_open(db, "failures")
 
     dir_active_changes = dir_active
     dir_sanity_changes = dir_sanity
+
+
+def get_application_dir(ensemble_id):
+    return dir_ensemble_results_application.get_path() + (ensemble_id,)
 
 
 def create_or_open_top_path(db, dir_path):
@@ -405,13 +414,27 @@ def _create_ensemble(tr, ensemble_id, properties, sanity=False):
     tr.add(changes, ONE)
 
 
-def create_ensemble(userid, properties, tarball, sanity=False):
-    hash = get_hash(tarball)
+def create_ensemble(userid, properties, tarball, sanity=False, use_s3=False):
+    if use_s3:
+        # If S3, get the hash from ETag (md5)
+        # e.g.
+        # $ aws s3api head-object --bucket mybucket --key path/to/tarball --query ETag --output text
+        # "a7470bf1a0536f4fe8432c4392281027-7"
+        client = boto3.client('s3')
+        response = client.head_object(
+            Bucket=tarball.split('/')[2],
+            Key='/'.join(tarball.split('/')[3:])
+        )
+        hash = response['ETag'].replace('"', '')[:16]
+        properties["s3url"] = tarball
+    else:
+        hash = get_hash(tarball)
     timestamp = format_datetime(datetime.datetime.now(datetime.timezone.utc))
     ensemble_id = timestamp + "-" + userid + "-" + hash[:16]
     if "submitted" not in properties:
         properties["submitted"] = timestamp
-    _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
+    if not use_s3:
+        _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
     _create_ensemble(db, ensemble_id, properties, sanity)
     logger.debug(
         "created ensemble {}, properties: {}, sanity: {}".format(
@@ -554,10 +577,16 @@ def _delete_ensemble_data(tr, ensemble_id, sanity=False):
     if tr[dir[ensemble_id]] != None:
         del tr[dir[ensemble_id]]
 
-    # Delete the record that this ensemble exists.
-    _delete_blob(tr, dir_ensemble_data[ensemble_id])
+    properties = get_ensemble_properties(ensemble_id)
+    if "s3url" not in properties:
+        # Delete the record that this ensemble exists.
+        _delete_blob(tr, dir_ensemble_data[ensemble_id])
     del tr[dir_all_ensembles[ensemble_id].range()]
     del tr[dir_all_ensembles[ensemble_id]]
+
+    # delete the application data
+    if dir_ensemble_results_application.exists(tr, ensemble_id):
+        dir_ensemble_results_application.remove(tr, ensemble_id)
 
     tr.add(changes, ONE)
 
@@ -573,7 +602,19 @@ def delete_ensemble(ensemble_id, compressed=True, sanity=False):
 def get_ensemble_data(ensemble_id, outfile=None):
     if not outfile:
         outfile = BytesIO()
-    _read_blob(db, dir_ensemble_data[ensemble_id], outfile)
+    # Check if tarball is stored as a blob or passed through S3
+    properties = get_ensemble_properties(ensemble_id)
+    if "s3url" in properties:
+        # Retrieve tarball from S3
+        tarball = properties["s3url"]
+        client = boto3.client('s3')
+        response = client.get_object(
+            Bucket=tarball.split('/')[2],
+            Key='/'.join(tarball.split('/')[3:])
+        )
+        outfile.write(response['Body'].read())
+    else:
+        _read_blob(db, dir_ensemble_data[ensemble_id], outfile)
     return outfile
 
 
