@@ -512,6 +512,9 @@ class AsyncEnsemble:
                 continue
             env["JOSHUA_" + k.upper()] = str(v)
         env["JOSHUA_SEED"] = str(seed).rstrip("L")
+        env['JOSHUA_APP_DIR'] = ",".join(list(joshua_model.get_application_dir(ensemble)))
+        if joshua_model.cluster_file is not None:
+            env['JOSHUA_CLUSTER_FILE'] = joshua_model.cluster_file
         # process_handling.ensure_path(env)
 
         #    print('{} Running ensemble in dir: {}'.format(threading.current_thread().name, work_dir),file=getFileHandle())
