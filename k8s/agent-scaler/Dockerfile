@@ -40,7 +40,9 @@ ENV LD_LIBRARY_PATH="/lib64:$LD_LIBRARY_PATH"
 
 # FDB python binding
 RUN source /opt/rh/rh-python38/enable && \
-    pip3 install foundationdb==6.3.18
+    pip3 install \
+        foundationdb==6.3.18 \
+	boto3
 
 ENV BATCH_SIZE=1
 ENV MAX_JOBS=10
