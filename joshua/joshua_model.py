@@ -141,6 +141,12 @@ def get_hash(file):
     return hash.hexdigest()
 
 
+def get_hash_str(s):
+    hash = hashlib.sha256()
+    hash.update(s.encode())
+    return hash.hexdigest()
+
+
 def transactional(func):
     f1 = fdb.transactional(func)
 
@@ -416,16 +422,8 @@ def _create_ensemble(tr, ensemble_id, properties, sanity=False):
 
 def create_ensemble(userid, properties, tarball, sanity=False, use_s3=False):
     if use_s3:
-        # If S3, get the hash from ETag (md5)
-        # e.g.
-        # $ aws s3api head-object --bucket mybucket --key path/to/tarball --query ETag --output text
-        # "a7470bf1a0536f4fe8432c4392281027-7"
-        client = boto3.client('s3')
-        response = client.head_object(
-            Bucket=tarball.split('/')[2],
-            Key='/'.join(tarball.split('/')[3:])
-        )
-        hash = response['ETag'].replace('"', '')[:16]
+        # If S3, simply take the hash of the S3 URL
+        hash = get_hash_str(tarball)
         properties["s3url"] = tarball
     else:
         hash = get_hash(tarball)
