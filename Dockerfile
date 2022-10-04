@@ -11,6 +11,7 @@ RUN yum repolist && \
         yum-utils && \
     yum -y install \
         bzip2 \
+        criu \
         devtoolset-8 \
         devtoolset-8-libasan-devel \
         devtoolset-8-liblsan-devel \
