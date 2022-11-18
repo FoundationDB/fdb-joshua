@@ -35,6 +35,7 @@ RUN yum repolist && \
         python-dateutil \
         subprocess32 \
         psutil \
+        kubernetes \
         boto3 && \
     gem install ffi --platform=ruby && \
     groupadd -r joshua -g 4060 && \

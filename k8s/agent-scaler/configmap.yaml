@@ -15,12 +15,17 @@ data:
     metadata:
       name: joshua-agent-${JOBNAME_SUFFIX}
       namespace: joshua
+      labels:
+        app: joshua-agent
     spec:
       template:
+        metadata:
+          labels:
+            app: joshua-agent
         spec:
           containers:
           - name: joshua-agent-container
-            image: foundationdb/joshua-agent:latest
+            image: ${AGENT_TAG}
             imagePullPolicy: IfNotPresent
             env:
             - name: AGENT_TIMEOUT
@@ -36,6 +41,7 @@ data:
                 items:
                   - key: fdb.cluster
                     path: fdb.cluster
+          serviceAccountName: joshua-agent-sa
           restartPolicy: Never
 kind: ConfigMap
 metadata:

@@ -34,6 +34,10 @@ import traceback
 import datetime
 from pprint import pprint
 
+# this is used to read / patch Pod labels
+from kubernetes import client, config
+import os
+
 import subprocess32 as subprocess
 import fdb
 from . import joshua_model
@@ -518,6 +522,30 @@ class AsyncEnsemble:
         # process_handling.ensure_path(env)
 
         #    print('{} Running ensemble in dir: {}'.format(threading.current_thread().name, work_dir),file=getFileHandle())
+
+        # Check and set the Pod label when run inside a k8s pod
+        # env['HOSTNAME'] contains the pod name in k8s
+        namespace = ""
+        k8s_namespace_file = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+        if env['HOSTNAME'] and os.path.isfile(k8s_namespace_file):
+            pod = env['HOSTNAME']
+            with open(k8s_namespace_file, 'r') as f:
+                namespace = f.read()
+
+            # Get the cluster config
+            config.load_incluster_config()
+            v1 = client.CoreV1Api()
+
+            # If last_test label is set to true, exit right away
+            pod_desc = v1.read_namespaced_pod(pod, namespace)
+            try:
+                if pod_desc.metadata.labels['last_test']  == "true":
+                    raise JoshuaError("New agent scaler marked this pod to stop. Exiting.")
+            except KeyError:
+                pass
+
+            # Update the ensemble label
+            v1.patch_namespaced_pod(pod, namespace, {"metadata":{"labels":{"ensemble":ensemble}}})
 
         # Ensure its local state exists
         where = ensemble_dir(ensemble, basepath=work_dir)

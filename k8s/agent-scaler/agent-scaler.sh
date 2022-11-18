@@ -9,12 +9,15 @@ use_k8s_ttl_controller=${USE_K8S_TTL_CONTROLLER:-false}
 
 namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
+# mark existing jobs to exit
+kubectl -n ${namespace} label pods -l app=joshua-agent last_test=true --overwrite=true
+
 # run forever
 while true; do
 
     if [ $use_k8s_ttl_controller == false ] ; then
       # cleanup finished jobs (status 1/1)
-      for job in $(kubectl get jobs -n "${namespace}" | grep -E -e 'joshua-agent-[0-9-]*\s*1/1' | awk '{print $1}'); do
+      for job in $(kubectl get jobs -n "${namespace}" --no-headers | grep -E -e 'joshua-agent-[0-9-]*\s*1/1' | awk '{print $1}'); do
           echo "=== Job $job Completed ==="
           kubectl delete job "$job" -n "${namespace}"
       done
@@ -22,7 +25,7 @@ while true; do
       # cleanup failed jobs
       # pod name is always prefixed with the job name
       # e.g. "joshua-agent-XXXXXXXXXXXX-XX-yyyyy"
-      for job in $(kubectl get pods -n "${namespace}" | grep -E -e "Completed" -e "Error" | cut -f 1-4 -d '-') ; do
+      for job in $(kubectl get pods -n "${namespace}" --no-headers | grep -E -e "Completed" -e "Error" | cut -f 1-4 -d '-') ; do
           echo "=== Deleting Job $job ==="
           kubectl delete job "$job" -n "${namespace}"
       done
@@ -33,7 +36,7 @@ while true; do
     echo "${num_ensembles} ensembles in the queue"
 
     # get the current jobs
-    num_jobs=$(kubectl get jobs -n "${namespace}" | wc -l)
+    num_jobs=$(kubectl get jobs -n "${namespace}" --no-headers | wc -l)
     echo "${num_jobs} jobs are running"
 
     # provision more jobs
