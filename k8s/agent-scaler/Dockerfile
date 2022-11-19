@@ -23,11 +23,13 @@ RUN yum repolist && \
 # agent-scaler tools
 COPY agent-scaler.sh /tools/
 COPY ensemble_count.py /tools/
+COPY get_agent_tag.py /tools/
 COPY joshua_model.py /tools/
 
 RUN chmod +x \
     /tools/agent-scaler.sh \
     /tools/ensemble_count.py \
+    /tools/get_agent_tag.py \
     /tools/joshua_model.py
 
 # libfdb_c.so

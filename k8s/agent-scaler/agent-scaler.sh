@@ -7,7 +7,24 @@ check_delay=${CHECK_DELAY:-10}
 # see https://kubernetes.io/docs/concepts/workloads/controllers/ttlafterfinished/
 use_k8s_ttl_controller=${USE_K8S_TTL_CONTROLLER:-false}
 
+# when enable_dynamic_agent_tag is true,
+# scaler will poll the joshua_model for any dynamic tag changes
+enable_dynamic_agent_tag=${ENABLE_DYNAMIC_AGENT_TAG:-false}
+initial_agent_tag=${AGENT_TAG}
+
+# when restart_scaler_at_agent_update is true,
+# scaler will exit and restart when a new agent tag is set
+restart_scaler_at_agent_update=${RESTART_SCALER_AT_AGENT_UPDATE:-false}
+
 namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+
+# set the current agent tag
+if [ $enable_dynamic_agent_tag == true ]; then
+    new_tag=$(python3 /tools/get_agent_tag.py)
+    if [ ! -z "${new_tag}" ]; then
+        export AGENT_TAG=${new_tag}
+    fi
+fi
 
 # mark existing jobs to exit
 kubectl -n ${namespace} label pods -l app=joshua-agent last_test=true --overwrite=true
@@ -29,6 +46,39 @@ while true; do
           echo "=== Deleting Job $job ==="
           kubectl delete job "$job" -n "${namespace}"
       done
+    fi
+
+    # check agent image updates
+    if [ $enable_dynamic_agent_tag == true ]; then
+        tag_changed=false
+        new_tag=$(python3 /tools/get_agent_tag.py)
+
+	# check if the tag is cleared
+        if [ -z "${new_tag}" ]; then
+	    # if the initial tag is already used, do nothing
+            if [ ! "${AGENT_TAG}" == "${initial_agent_tag}" ]; then
+                # restore the original tag baked in the image
+                export AGENT_TAG=${initial_agent_tag}
+		tag_changed=true
+	    fi
+        # check if the tag has changed
+        elif [ ! "${AGENT_TAG}" == "${new_tag}" ]; then
+            # update the agent tag
+            export AGENT_TAG=${new_tag}
+            tag_changed=true
+        fi
+
+        if [ $tag_changed == true ]; then
+            if [ $restart_scaler_at_agent_update == true ]; then
+                # restart by itself
+                # agents will be stopped during the next startup
+                kubectl -n "${namespace}" delete pod ${HOSTNAME}
+                exit 0
+            else
+               # stop current agents
+               kubectl -n ${namespace} label pods -l app=joshua-agent last_test=true --overwrite=true
+            fi
+        fi
     fi
 
     # get the current ensembles

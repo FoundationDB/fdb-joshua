@@ -87,12 +87,13 @@ dir_ensemble_results_application = None
 dir_active_changes = None
 dir_sanity_changes = None
 dir_failures = None
+dir_agent_tag = None
 
 
 def open(c_file=None, dir_path=("joshua",)):
     global cluster_file, db, dir_top, dir_ensembles, dir_active, dir_sanity, dir_all_ensembles, dir_ensemble_data
     global dir_ensemble_results, dir_ensemble_results_pass, dir_ensemble_results_fail, dir_ensemble_incomplete
-    global dir_ensemble_results_large, dir_ensemble_results_application, dir_active_changes, dir_sanity_changes, dir_failures
+    global dir_ensemble_results_large, dir_ensemble_results_application, dir_active_changes, dir_sanity_changes, dir_failures, dir_agent_tag
 
     cluster_file = c_file
     db = fdb.open(cluster_file)
@@ -109,6 +110,7 @@ def open(c_file=None, dir_path=("joshua",)):
     dir_ensemble_results_large = dir_ensemble_results.create_or_open(db, "large")
     dir_ensemble_results_application = dir_ensemble_results.create_or_open(db, "application")
     dir_failures = dir_top.create_or_open(db, "failures")
+    dir_agent_tag = dir_top.create_or_open(db, "agent_tag")
 
     dir_active_changes = dir_active
     dir_sanity_changes = dir_sanity
@@ -1023,3 +1025,23 @@ def get_agent_failures(tr, time_start=None, time_end=None):
         failures.append((info, msg))
 
     return failures
+
+
+@transactional
+def get_agent_tag(tr: fdb.Transaction) -> Optional[str]:
+    ret = None
+    try:
+        val = tr[dir_agent_tag].value
+        if val is not None:
+            ret = val.decode('utf-8')
+    except NameError:
+        pass
+    return ret
+
+@transactional
+def set_agent_tag(tr: fdb.Transaction, tag_str: str) -> None:
+    tr[dir_agent_tag] = tag_str.encode('utf-8')
+
+@transactional
+def clear_agent_tag(tr: fdb.Transaction) -> None:
+    del tr[dir_agent_tag]

@@ -410,6 +410,17 @@ def download_ensemble(ensemble, out=None, force=False, sanity=False, **args):
     print("Download completed")
 
 
+def agent_tag(set=None, clear=False, **args):
+    if set is not None:
+        joshua_model.set_agent_tag(set)
+    elif clear == True:
+        joshua_model.clear_agent_tag()
+    else:
+        tag = joshua_model.get_agent_tag()
+        if tag is not None:
+            print(tag)
+
+
 if __name__ == "__main__":
     name_space = os.environ.get("JOSHUA_NAMESPACE", "joshua")
     parser = argparse.ArgumentParser(description="How about a nice game of chess?")
@@ -694,6 +705,21 @@ if __name__ == "__main__":
         help="ensemble in question is a sanity ensemble",
     )
     parser_download.set_defaults(cmd=download_ensemble)
+
+    # agent_tag is a hidden command only used in k8s environments
+    parser_agent_tag = subparsers.add_parser("agent_tag", usage=argparse.SUPPRESS)
+    parser_agent_tag.add_argument(
+        "--set",
+        default=None,
+        help="set a new agent tag",
+    )
+    parser_agent_tag.add_argument(
+        "--clear",
+        default=False,
+        action="store_true",
+        help="clear agent tag",
+    )
+    parser_agent_tag.set_defaults(cmd=agent_tag)
 
     arguments = parser.parse_args()
 

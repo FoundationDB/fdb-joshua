@@ -553,3 +553,17 @@ def test_two_agents_large_ensemble(monkeypatch, tmp_path, empty_ensemble):
 
     for agent in agents:
         agent.join()
+
+
+def test_agent_tag(tmp_path, empty_ensemble):
+    tag = "test_tag"
+
+    # clear tag
+    joshua_model.clear_agent_tag()
+    assert joshua_model.get_agent_tag() == None
+
+    # set tag
+    joshua_model.set_agent_tag(tag)
+    assert joshua_model.get_agent_tag() == tag
+
+    joshua_model.clear_agent_tag()
