@@ -6,11 +6,20 @@ check_delay=${CHECK_DELAY:-10}
 # Kubernetes 1.21 supports jobs TTL controller, which cleans up jobs automatically
 # see https://kubernetes.io/docs/concepts/workloads/controllers/ttlafterfinished/
 use_k8s_ttl_controller=${USE_K8S_TTL_CONTROLLER:-false}
+restart_agents_on_boot=${RESTART_AGENTS_ON_BOOT:-false}
 
 namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
-# mark existing jobs to exit
-kubectl -n ${namespace} label pods -l app=joshua-agent last_test=true --overwrite=true
+if [ -z "${AGENT_TAG}" ]; then
+    # if AGENT_TAG is not set through --build-arg,
+    # use the default agent image and tag
+    export AGENT_TAG="foundationdb/joshua-agent:latest"
+fi
+
+if [ $restart_agents_on_boot == true ]; then
+    # mark existing jobs to exit after the current test completes
+    kubectl -n ${namespace} label pods -l app=joshua-agent last_test=true --overwrite=true
+fi
 
 # run forever
 while true; do
