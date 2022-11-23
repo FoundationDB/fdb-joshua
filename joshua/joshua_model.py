@@ -912,6 +912,18 @@ def _read_and_watch_results(tr, results_dirs, ensemble_id, begin_versionstamp):
         True,
     )
 
+@fdb.transactional
+def _read_code_coverage(tr, ensemble_id):
+    result = []
+    cov_dir = dir_ensemble_results_application.create_or_open(tr, ensemble_id).create_or_open(tr, 'coverage')
+    for k, v in tr[cov_dir.range()]:
+        file, line, comment, rare = cov_dir.unpack(k)
+        count = struct.unpack('<I', v)[0]
+        result.append((file, line, comment, rare, count))
+    return result
+
+def get_code_coverage(ensemble_id):
+    return _read_code_coverage(db, ensemble_id)
 
 def tail_results(ensemble_id, errors_only=False, compressed=True):
     result_dirs = [dir_ensemble_results_fail]
