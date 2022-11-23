@@ -36,7 +36,6 @@ from pprint import pprint
 
 # this is used to read / patch Pod labels
 from kubernetes import client, config
-import os
 
 import subprocess32 as subprocess
 import fdb
@@ -528,7 +527,7 @@ class AsyncEnsemble:
         namespace = ""
         k8s_namespace_file = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
         if env['HOSTNAME'] and os.path.isfile(k8s_namespace_file):
-            pod = env['HOSTNAME']
+            pod_name = env['HOSTNAME']
             with open(k8s_namespace_file, 'r') as f:
                 namespace = f.read()
 
@@ -537,15 +536,13 @@ class AsyncEnsemble:
             v1 = client.CoreV1Api()
 
             # If last_test label is set to true, exit right away
-            pod_desc = v1.read_namespaced_pod(pod, namespace)
-            try:
-                if pod_desc.metadata.labels['last_test']  == "true":
-                    raise JoshuaError("New agent scaler marked this pod to stop. Exiting.")
-            except KeyError:
-                pass
+            pod_desc = v1.read_namespaced_pod(pod_name, namespace)
+            if pod_desc.metadata.labels.get('last_test', 'false') == "true":
+                raise JoshuaError("New agent scaler marked this pod to stop. Exiting.")
 
             # Update the ensemble label
-            v1.patch_namespaced_pod(pod, namespace, {"metadata":{"labels":{"ensemble":ensemble}}})
+            if pod_desc.metadata.labels.get('ensemble', '') != ensemble:
+                v1.patch_namespaced_pod(pod_name, namespace, {"metadata":{"labels":{"ensemble":ensemble}}})
 
         # Ensure its local state exists
         where = ensemble_dir(ensemble, basepath=work_dir)
