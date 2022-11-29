@@ -10,11 +10,9 @@ restart_agents_on_boot=${RESTART_AGENTS_ON_BOOT:-false}
 
 namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
-if [ -z "${AGENT_TAG}" ]; then
-    # if AGENT_TAG is not set through --build-arg,
-    # use the default agent image and tag
-    export AGENT_TAG="foundationdb/joshua-agent:latest"
-fi
+# if AGENT_TAG is not set through --build-arg,
+# use the default agent image and tag
+export AGENT_TAG=${AGENT_TAG:-"foundationdb/joshua-agent:latest"}
 
 if [ $restart_agents_on_boot == true ]; then
     # mark existing jobs to exit after the current test completes
