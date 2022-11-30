@@ -27,6 +27,7 @@ rules:
   - list
   - create
   - delete
+  - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -42,6 +43,40 @@ subjects:
   name: joshua-sa
   namespace: joshua
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: joshua-agent-sa
+  namespace: joshua
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: joshua-agent-role
+  namespace: joshua
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: joshua-agent-role-binding
+  namespace: joshua
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: joshua-agent-role
+subjects:
+- kind: ServiceAccount
+  name: joshua-agent-sa
+  namespace: joshua
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -53,4 +88,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: joshua-sa
+  namespace: joshua
+- kind: ServiceAccount
+  name: joshua-agent-sa
   namespace: joshua
