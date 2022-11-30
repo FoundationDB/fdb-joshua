@@ -526,7 +526,7 @@ class AsyncEnsemble:
         # env['HOSTNAME'] contains the pod name in k8s
         namespace = ""
         k8s_namespace_file = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-        if env['HOSTNAME'] and os.path.isfile(k8s_namespace_file):
+        if env.get('HOSTNAME', False) and os.path.isfile(k8s_namespace_file):
             pod_name = env['HOSTNAME']
             with open(k8s_namespace_file, 'r') as f:
                 namespace = f.read()
