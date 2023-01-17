@@ -967,9 +967,9 @@ def tail_results(ensemble_id, errors_only=False, compressed=True):
                             )
                         else:
                             yield new_item
-                    except Exception as e:
+                    except Exception:
                         # Could not parse the message. Just yield the item.
-                        traceback.print_exc(e)
+                        traceback.print_exc()
                         yield new_item
                 else:
                     yield new_item
