@@ -51,6 +51,7 @@ fdb.api_version(630)
 FDBError = fdb.FDBError
 
 ONE = b"\x01" + b"\x00" * 7
+NEGATIVE_ONE = struct.pack('<q', -1)
 TIMESTAMP_FMT = "%Y%m%d-%H%M%S"
 
 TIMEDELTA_REGEX1 = re.compile(
@@ -633,18 +634,30 @@ def _increment(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], ONE)
 
 
+def _decrement(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:
+     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], NEGATIVE_ONE)
+
+
 def _add(tr: fdb.Transaction, ensemble_id: str, counter: str, value: int) -> None:
     byte_val = struct.pack("<Q", value)
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], byte_val)
 
 
-def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
-    value = tr.snapshot.get(dir_all_ensembles[ensemble_id]["count"][counter])
+def _get_counter_impl(tr: fdb.Transaction, ensemble_id: str, counter: str, snapshot: bool) -> int:
+    if snapshot:
+        value = tr.snapshot.get(dir_all_ensembles[ensemble_id]["count"][counter])
+    else:
+        value = tr.get(dir_all_ensembles[ensemble_id]["count"][counter])
     if value == None:
         return 0
     else:
         return struct.unpack("<Q", b"" + value)[0]
 
+def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
+    return _get_counter_impl(tr, ensemble_id, counter, True)
+
+def _get_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
+    return _get_counter_impl(tr, ensemble_id, counter, False)
 
 def _get_seeds_and_heartbeats(
     ensemble_id: str, tr: fdb.Transaction
@@ -813,9 +826,9 @@ def _insert_results(
         results = dir_ensemble_results_pass
 
     if max_runs > 0:
-        # This is a snapshot read so that two insertions don't conflict.
-        ended = _get_snap_counter(tr, ensemble_id, "ended")
-        if ended >= max_runs:
+        started = _get_counter(tr, ensemble_id, "started")
+        ended = _get_counter(tr, ensemble_id, "ended")
+        if ended >= max(max_runs, started):
             _stop_ensemble(tr, ensemble_id, sanity)
 
     if duration:
@@ -1023,3 +1036,14 @@ def get_agent_failures(tr, time_start=None, time_end=None):
         failures.append((info, msg))
 
     return failures
+
+@transactional
+def cancel_agent_cleanup(tr, ensemble_id):
+    """
+    Clean-up method for when an agent takes a job but gets cancelled
+    """
+
+    # TODO(qhoang) let's try this but there must be a better way
+    # When an agent is cancelled, it has already incremented the __started__ counter
+    # but will never get to increment the __ended__ counter
+    _decrement(tr, ensemble_id, "started")

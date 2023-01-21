@@ -114,25 +114,6 @@ def stopAgent():
     return stop_agent
 
 
-def trim_jobqueue(cutoff_date, remove_jobs=True):
-    global job_queue
-    jobs_pass = 0
-    jobs_fail = 0
-    cutoff_string = joshua_model.format_datetime(cutoff_date)
-
-    for job_record in list(job_queue.queue):
-        (result, job_date) = fdb.tuple.unpack(job_record)
-        if job_date <= cutoff_string:
-            if remove_jobs:
-                old_record = job_queue.get_nowait()
-        elif result == 0:
-            jobs_pass += 1
-        else:
-            jobs_fail += 1
-
-    return (jobs_pass + jobs_fail, jobs_pass, jobs_fail)
-
-
 def log(outputText, newline=True):
     return (
         print(outputText, file=getFileHandle())
@@ -337,7 +318,8 @@ def remove_old_artifacts(path, age=24 * 60 * 60):
 
 # Returns whether the artifacts should be saved based on run state.
 def should_save(retcode, save_on="FAILURE"):
-    return save_on == "ALWAYS" or save_on == "FAILURE" and retcode != 0
+    # do not save when cancelled (retcode == -1)
+    return save_on == "ALWAYS" or save_on == "FAILURE" and retcode != 0 and retcode != -1
 
 
 # Removes artifacts from the current run, saving them if necessary.
@@ -483,7 +465,6 @@ class AsyncEnsemble:
         :param sanity:
         :return: 0 for success
         """
-        global jobs_pass, jobs_fail
         if not work_dir:
             raise JoshuaError(
                 "Unable to run function since work_dir is not defined. Exiting. (CWD="
@@ -673,6 +654,12 @@ class AsyncEnsemble:
 
         cleanup(ensemble, where, seed, retcode, save_on, work_dir=work_dir)
 
+        if retcode == -1:
+            # no results to record when cancelled
+            self._retcode = retcode
+            joshua_model.cancel_agent_cleanup(ensemble)
+            return
+
         try:
             joshua_model.insert_results(
                 ensemble,
@@ -698,17 +685,6 @@ class AsyncEnsemble:
                 max_runs,
                 duration,
             )
-
-        # Add the result to the job queue
-        job_queue.put(fdb.tuple.pack((retcode, done_timestamp)))
-
-        # Update the job counts
-        job_mutex.acquire()
-        if retcode == 0:
-            jobs_pass += 1
-        else:
-            jobs_fail += 1
-        job_mutex.release()
 
         self._retcode = retcode
 
@@ -892,14 +868,9 @@ def agent(
                 ensembles_can_run = list(
                     filter(joshua_model.should_run_ensemble, ensembles)
                 )
-                if not ensembles_can_run:
-                    # All the ensembles have enough runs started for now. Don't
-                    # time the agent out, just wait until there are no
-                    # ensembles or the other agents might have died.
-                    time.sleep(1)
-                    continue
-            else:
-                # No ensembles at all. Consider timing this agent out.
+
+            if not ensembles or (ensembles and not ensembles_can_run):
+                # No ensembles to run. Consider timing this agent out.
                 try:
                     watch.wait_for_any(watch, sanity_watch, TimeoutFuture(1.0))
                 except Exception as e:
