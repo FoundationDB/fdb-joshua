@@ -537,8 +537,11 @@ class AsyncEnsemble:
 
             # If last_test label is set to true, exit right away
             pod_desc = v1.read_namespaced_pod(pod_name, namespace)
-            if pod_desc.metadata.labels['last_test']:
-                raise JoshuaError("New agent scaler marked this pod to stop. Exiting.")
+            try:
+                if pod_desc.metadata.labels['last_test']:
+                    raise JoshuaError("New agent scaler marked this pod to stop. Exiting.")
+            except KeyError:
+                pass
 
             # Update the ensemble label
             if pod_desc.metadata.labels.get('ensemble', '') != ensemble:
