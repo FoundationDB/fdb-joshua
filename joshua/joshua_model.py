@@ -633,6 +633,10 @@ def _increment(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], ONE)
 
 
+def _decrement(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:
+    tr.add(dir_all_ensembles[ensemble_id]["count"][counter], struct.pack("<q", -1))
+
+
 def _add(tr: fdb.Transaction, ensemble_id: str, counter: str, value: int) -> None:
     byte_val = struct.pack("<Q", value)
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], byte_val)
@@ -694,6 +698,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
                 )
             )
 
+            _decrement(tr, ensemble_id, "started")
             # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
             # We only want one agent to succeed in taking over for the dead agent's run/seed.
             tr.add_read_conflict_key(
@@ -742,7 +747,17 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
 
+    props = _get_ensemble_properties(tr, ensemble_id)
+    started = props.get("started", 0)
+    max_runs = props.get("max_runs", 0)
+    if max_runs > 0 and started >= max_runs:
+        return False
+
+    # We read started and max_runs at serializable isolation, so we do have a
+    # read conflict on started, but atomic add will still have the effect we
+    # want
     _increment(tr, ensemble_id, "started")
+
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid
     current_time = time.time()
     tr[dir_ensemble_incomplete[ensemble_id][seed]["began_at"]] = fdb.tuple.pack(
