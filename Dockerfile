@@ -12,11 +12,13 @@ RUN yum repolist && \
     yum -y install \
         bzip2 \
         criu \
-        devtoolset-8 \
-        devtoolset-8-libasan-devel \
-        devtoolset-8-liblsan-devel \
-        devtoolset-8-libtsan-devel \
-        devtoolset-8-libubsan-devel \
+        devtoolset-11 \
+        devtoolset-11-libasan-devel \
+        devtoolset-11-liblsan-devel \
+        devtoolset-11-libtsan-devel \
+        devtoolset-11-libubsan-devel \
+        devtoolset-11-libatomic-devel \
+        devtoolset-11-systemtap-sdt-devel \
         gettext \
         golang \
         java-11-openjdk-devel \
@@ -28,7 +30,7 @@ RUN yum repolist && \
         rh-ruby27 \
         rh-ruby27-ruby-devel \
         libatomic && \
-    source /opt/rh/devtoolset-8/enable && \
+    source /opt/rh/devtoolset-11/enable && \
     source /opt/rh/rh-python38/enable && \
     source /opt/rh/rh-ruby27/enable && \
     pip3 install \
@@ -51,14 +53,14 @@ RUN yum repolist && \
     rm -rf /tmp/*
 
 # valgrind
-RUN source /opt/rh/devtoolset-8/enable && \
-    curl -Ls --retry 5 --fail https://sourceware.org/pub/valgrind/valgrind-3.17.0.tar.bz2 -o valgrind-3.17.0.tar.bz2 && \
-    echo "ad3aec668e813e40f238995f60796d9590eee64a16dff88421430630e69285a2  valgrind-3.17.0.tar.bz2" > valgrind-sha.txt && \
+RUN source /opt/rh/devtoolset-11/enable && \
+    curl -Ls --retry 5 --fail https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 -o valgrind.tar.bz2 && \
+    echo "8536c031dbe078d342f121fa881a9ecd205cb5a78e639005ad570011bdb9f3c6  valgrind.tar.bz2" > valgrind-sha.txt && \
     sha256sum -c valgrind-sha.txt && \
     mkdir valgrind && \
-    tar --strip-components 1 --no-same-owner --no-same-permissions --directory valgrind -xjf valgrind-3.17.0.tar.bz2 && \
+    tar --strip-components 1 --no-same-owner --no-same-permissions --directory valgrind -xjf valgrind.tar.bz2 && \
     cd valgrind && \
-    ./configure && \
+    ./configure --enable-only64bit --enable-lto && \
     make && \
     make install && \
     cd .. && \
@@ -68,7 +70,7 @@ COPY childsubreaper/ /opt/joshua/install/childsubreaper
 COPY joshua/ /opt/joshua/install/joshua
 COPY setup.py /opt/joshua/install/
 
-RUN source /opt/rh/devtoolset-8/enable && \
+RUN source /opt/rh/devtoolset-11/enable && \
     source /opt/rh/rh-python38/enable && \
     source /opt/rh/rh-ruby27/enable && \
     pip3 install /opt/joshua/install && \
@@ -96,7 +98,7 @@ ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=300
 
 USER joshua
-CMD source /opt/rh/devtoolset-8/enable && \
+CMD source /opt/rh/devtoolset-11/enable && \
     source /opt/rh/rh-python38/enable && \
     source /opt/rh/rh-ruby27/enable && \
     python3 -m joshua.joshua_agent \
