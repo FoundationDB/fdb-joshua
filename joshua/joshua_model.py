@@ -430,7 +430,9 @@ def create_ensemble(userid, properties, tarball, sanity=False, use_s3=False):
     else:
         hash = get_hash(tarball)
     timestamp = format_datetime(datetime.datetime.now(datetime.timezone.utc))
-    ensemble_id = timestamp + "-" + userid + "-" + hash[:16]
+    ensemble_id_candidate = timestamp + "-" + userid + "-" + hash[:16]
+    # trim this because kubernetes labels are limited to 63 characters
+    ensemble_id = ensemble_id_candidate[:60]
     if "submitted" not in properties:
         properties["submitted"] = timestamp
     if not use_s3:
