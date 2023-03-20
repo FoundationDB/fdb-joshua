@@ -404,6 +404,11 @@ def download_ensemble(ensemble, out=None, force=False, sanity=False, **args):
         print("File {} already exists. Refusing to overwrite file.".format(out_file))
         return
 
+    # Treat slash characters as subdirectories
+    ensemble_dir = os.path.dirname(ensemble)
+    if ensemble_dir:
+        os.mkdir(ensemble_dir)
+
     print("Downloading ensemble {} into {}...".format(ensemble, out_file))
     with open(out_file, "wb") as fout:
         joshua_model.get_ensemble_data(ensemble_id=ensemble, outfile=fout)
