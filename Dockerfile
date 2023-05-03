@@ -95,6 +95,43 @@ RUN if [ "$(uname -p)" == "x86_64" ]; then \
         ln -s ${OLD_TLS_LIBRARY_DIR}/FDBGnuTLS.so /usr/lib/foundationdb/plugins/FDBGnuTLS.so; \
     fi
 
+# Download swift binaries
+ARG SWIFT_SIGNING_KEY=8A7495662C3CD4AE18D95637FAF6989E1BC16FEA
+ARG SWIFT_PLATFORM=centos
+ARG OS_MAJOR_VER=7
+ARG SWIFT_WEBROOT=https://download.swift.org/development
+
+ENV SWIFT_SIGNING_KEY=$SWIFT_SIGNING_KEY \
+    SWIFT_PLATFORM=$SWIFT_PLATFORM \
+    OS_MAJOR_VER=$OS_MAJOR_VER \
+    OS_VER=$SWIFT_PLATFORM$OS_MAJOR_VER \
+    SWIFT_WEBROOT="$SWIFT_WEBROOT/$SWIFT_PLATFORM$OS_MAJOR_VER"
+
+RUN echo "${SWIFT_WEBROOT}/latest-build.yml"
+
+# aarch64 package is not available for CentOS7
+# https://www.swift.org/download/
+RUN if [ "$(uname -p)" == "x86_64" ]; then \
+        set -e; \
+        export $(curl -Ls ${SWIFT_WEBROOT}/latest-build.yml | grep 'download:' | sed 's/:[^:\/\/]/=/g') && \
+        export $(curl -Ls ${SWIFT_WEBROOT}/latest-build.yml | grep 'download_signature:' | sed 's/:[^:\/\/]/=/g')  && \
+        export DOWNLOAD_DIR=$(echo $download | sed "s/-${OS_VER}.tar.gz//g") && \
+        echo $DOWNLOAD_DIR > .swift_tag && \
+        export GNUPGHOME="$(mktemp -d)" && \
+        curl -fLs ${SWIFT_WEBROOT}/${DOWNLOAD_DIR}/${download} -o latest_toolchain.tar.gz && \
+        curl -fLs ${SWIFT_WEBROOT}/${DOWNLOAD_DIR}/${download_signature} -o latest_toolchain.tar.gz.sig && \
+        curl -fLs https://swift.org/keys/all-keys.asc | gpg --import -  && \
+        gpg --batch --verify latest_toolchain.tar.gz.sig latest_toolchain.tar.gz && \
+        tar -xzf latest_toolchain.tar.gz --directory / --strip-components=1 && \
+        chmod -R o+r /usr/lib/swift && \
+        rm -rf "$GNUPGHOME" latest_toolchain.tar.gz.sig latest_toolchain.tar.gz; \
+    fi
+
+# Print Installed Swift Version
+RUN if [ "$(uname -p)" == "x86_64" ]; then \
+        swift --version; \
+    fi
+
 ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=300
 
