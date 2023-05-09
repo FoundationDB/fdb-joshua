@@ -39,6 +39,7 @@ RUN yum repolist && \
         subprocess32 \
         psutil \
         kubernetes \
+        urllib3==1.26.14 \
         boto3 && \
     gem install ffi --platform=ruby && \
     groupadd -r joshua -g 4060 && \
