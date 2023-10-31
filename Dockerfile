@@ -86,6 +86,10 @@ COPY childsubreaper/ /opt/joshua/install/childsubreaper
 COPY joshua/ /opt/joshua/install/joshua
 COPY setup.py /opt/joshua/install/
 
+ENV ARTIFACT="server"
+RUN pip3 install /opt/joshua/install
+
+ENV ARTIFACT="client"
 RUN pip3 install /opt/joshua/install && \
     rm -rf /opt/joshua/install
 
