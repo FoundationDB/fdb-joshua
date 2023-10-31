@@ -1,39 +1,39 @@
-FROM centos:7
+FROM rockylinux:9
 # this is joshua-agent
 
-ARG DEVTOOLSET_VERSION=11
 WORKDIR /tmp
 
-RUN yum repolist && \
-    yum install -y \
-        centos-release-scl-rh \
+RUN dnf -y update && \
+    dnf install -y \
         epel-release \
         scl-utils \
         yum-utils && \
-    yum -y install \
+    dnf -y install --enablerepo=devel \
         bzip2 \
         criu \
-        devtoolset-${DEVTOOLSET_VERSION} \
-        devtoolset-${DEVTOOLSET_VERSION}-libasan-devel \
-        devtoolset-${DEVTOOLSET_VERSION}-liblsan-devel \
-        devtoolset-${DEVTOOLSET_VERSION}-libtsan-devel \
-        devtoolset-${DEVTOOLSET_VERSION}-libubsan-devel \
-        devtoolset-${DEVTOOLSET_VERSION}-libatomic-devel \
-        devtoolset-${DEVTOOLSET_VERSION}-systemtap-sdt-devel \
+        gcc-c++ \
         gettext \
-        golang \
         java-11-openjdk-devel \
+        libasan \
+        libasan-static \
+        libatomic \
+        libatomic-static \
+        libffi \
+        libffi-devel \
+        liblsan \
+        liblsan-static \
+        libtsan \
+        libtsan-static \
+        libubsan \
+        libubsan-static \
         mono-core \
         net-tools \
-        rh-python38 \
-        rh-python38-python-devel \
-        rh-python38-python-pip \
-        rh-ruby27 \
-        rh-ruby27-ruby-devel \
-        libatomic && \
-    source /opt/rh/devtoolset-${DEVTOOLSET_VERSION}/enable && \
-    source /opt/rh/rh-python38/enable && \
-    source /opt/rh/rh-ruby27/enable && \
+        python3-devel \
+        redhat-rpm-config \
+        ruby \
+        ruby-devel \
+        rubygem-ffi \
+        systemtap-sdt-devel && \
     pip3 install \
         python-dateutil \
         subprocess32 \
@@ -41,7 +41,6 @@ RUN yum repolist && \
         kubernetes \
         urllib3==1.26.14 \
         boto3 && \
-    gem install ffi --platform=ruby && \
     groupadd -r joshua -g 4060 && \
     useradd \
         -rm \
@@ -55,8 +54,7 @@ RUN yum repolist && \
     rm -rf /tmp/*
 
 # valgrind
-RUN source /opt/rh/devtoolset-${DEVTOOLSET_VERSION}/enable && \
-    curl -Ls --retry 5 --fail https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 -o valgrind.tar.bz2 && \
+RUN curl -Ls --retry 5 --fail https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 -o valgrind.tar.bz2 && \
     echo "8536c031dbe078d342f121fa881a9ecd205cb5a78e639005ad570011bdb9f3c6  valgrind.tar.bz2" > valgrind-sha.txt && \
     sha256sum -c valgrind-sha.txt && \
     mkdir valgrind && \
@@ -68,14 +66,27 @@ RUN source /opt/rh/devtoolset-${DEVTOOLSET_VERSION}/enable && \
     cd .. && \
     rm -rf /tmp/*
 
+# install golang 1.20
+RUN if [ "$(uname -m)" == "aarch64" ]; then \
+        GOLANG_ARCH="arm64"; \
+        GOLANG_SHA256="4e15ab37556e979181a1a1cc60f6d796932223a0f5351d7c83768b356f84429b"; \
+    else \
+        GOLANG_ARCH="amd64"; \
+        GOLANG_SHA256="b945ae2bb5db01a0fb4786afde64e6fbab50b67f6fa0eb6cfa4924f16a7ff1eb"; \
+    fi && \
+    curl -Ls https://golang.org/dl/go1.20.6.linux-${GOLANG_ARCH}.tar.gz -o golang.tar.gz && \
+    echo "${GOLANG_SHA256}  golang.tar.gz" > golang-sha.txt && \
+    sha256sum --quiet -c golang-sha.txt && \
+    tar --directory /usr/local -xf golang.tar.gz && \
+    echo '[ -x /usr/local/go/bin/go ] && export GOROOT=/usr/local/go && export GOPATH=$HOME/go && export PATH=$GOPATH/bin:$GOROOT/bin:$PATH' >> /etc/profile.d/golang.sh && \
+    source /etc/profile.d/golang.sh && \
+    rm -rf /tmp/*
+
 COPY childsubreaper/ /opt/joshua/install/childsubreaper
 COPY joshua/ /opt/joshua/install/joshua
 COPY setup.py /opt/joshua/install/
 
-RUN source /opt/rh/devtoolset-${DEVTOOLSET_VERSION}/enable && \
-    source /opt/rh/rh-python38/enable && \
-    source /opt/rh/rh-ruby27/enable && \
-    pip3 install /opt/joshua/install && \
+RUN pip3 install /opt/joshua/install && \
     rm -rf /opt/joshua/install
 
 ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
@@ -85,7 +96,7 @@ RUN if [ "$(uname -p)" == "x86_64" ]; then \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  ${OLD_TLS_LIBRARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
-        for old_fdb_server_version in 7.1.35 7.1.33 7.1.27 7.1.25 7.1.23 7.1.19 6.3.18 6.3.17 6.3.16 6.3.15 6.3.13 6.3.12 6.3.9 6.2.30 6.2.29 6.2.28 6.2.27 6.2.26 6.2.25 6.2.24 6.2.23 6.2.22 6.2.21 6.2.20 6.2.19 6.2.18 6.2.17 6.2.16 6.2.15 6.2.10 6.1.13 6.1.12 6.1.11 6.1.10 6.0.18 6.0.17 6.0.16 6.0.15 6.0.14 5.2.8 5.2.7 5.1.7 5.1.6; do \
+        for old_fdb_server_version in 7.3.25 7.1.43 7.1.41 7.1.39 6.3.25 6.3.18; do \
             curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o ${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version}; \
         done && \
         chmod +x ${OLD_FDB_BINARY_DIR}/* && \
