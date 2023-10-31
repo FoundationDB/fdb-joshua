@@ -7,7 +7,8 @@ RUN dnf -y update && \
         scl-utils \
         yum-utils && \
     dnf -y install \
-        gettext && \
+        gettext \
+        python3-pip && \
     dnf -y clean all --enablerepo='*' && \
     case $(uname -m) in \
             x86_64) curl -Ls https://dl.k8s.io/release/v1.27.5/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl;; \
