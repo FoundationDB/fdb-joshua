@@ -48,4 +48,4 @@ ENV AGENT_TAG=${AGENT_TAG}
 ENV NAMESPACE=joshua
 
 # Entry point
-ENTRYPOINT source /opt/rh/rh-python38/enable && /tools/agent-scaler.sh
+ENTRYPOINT /tools/agent-scaler.sh

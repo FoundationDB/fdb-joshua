@@ -142,10 +142,7 @@ ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=300
 
 USER joshua
-CMD source /opt/rh/devtoolset-${DEVTOOLSET_VERSION}/enable && \
-    source /opt/rh/rh-python38/enable && \
-    source /opt/rh/rh-ruby27/enable && \
-    python3 -m joshua.joshua_agent \
+CMD python3 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \
         --work_dir /var/joshua \
         --agent-idle-timeout ${AGENT_TIMEOUT}
