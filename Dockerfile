@@ -33,7 +33,8 @@ RUN dnf -y update && \
         ruby \
         ruby-devel \
         rubygem-ffi \
-        systemtap-sdt-devel && \
+        systemtap-sdt-devel \
+        xz && \
     pip3 install \
         python-dateutil \
         subprocess32 \
