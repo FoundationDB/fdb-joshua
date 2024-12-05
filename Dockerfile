@@ -1,4 +1,4 @@
-FROM rockylinux:9 as build
+FROM rockylinux:9
 # this is joshua-agent
 
 WORKDIR /tmp
@@ -22,19 +22,15 @@ RUN dnf update -y && \
         ruby \
         ruby-devel \
         libffi-devel \
-        libatomic && \ 
+        libatomic && \
     pip3 install \
         python-dateutil \
         subprocess32 \
         psutil \
         kubernetes \
         urllib3==1.26.14 \
-        boto3
-
-# =========================== END OF LAYER: build ==============================
-FROM build as devel
-
-RUN    gem install ffi --platform=ruby && \
+        boto3 && \
+    gem install ffi --platform=ruby && \
     groupadd -r joshua -g 4060 && \
     useradd \
         -rm \
@@ -61,30 +57,33 @@ RUN curl -Ls --retry 5 --fail https://sourceware.org/pub/valgrind/valgrind-3.20.
     cd .. && \
     rm -rf /tmp/*
 
+# Install Joshua client
 COPY childsubreaper/ /opt/joshua/install/childsubreaper
 COPY joshua/ /opt/joshua/install/joshua
 COPY setup.py /opt/joshua/install/
-RUN pip3 install /opt/joshua/install && \
+RUN ARTIFACT=client pip3 install /opt/joshua/install && \
     rm -rf /opt/joshua/install
 
+# install old fdbserver binaries and libfdb_c.so
+# Skip these old versions: 6.2.30 6.2.29 6.2.28 6.2.27 6.2.26 6.2.25 6.2.24 6.2.23 6.2.22 6.2.21 6.2.20 6.2.19 6.2.18 6.2.17 6.2.16 6.2.15 6.2.10 6.1.13 6.1.12 6.1.11 6.1.10 6.0.18 6.0.17 6.0.16 6.0.15 6.0.14 5.2.8 5.2.7 5.1.7 5.1.6
+# because 7.3 no longer supports upgrade from these versions.
 ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
 ARG FDB_VERSION="7.1.57"
 RUN if [ "$(uname -p)" == "x86_64" ]; then \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
-        # Skip these old versions 6.2.30 6.2.29 6.2.28 6.2.27 6.2.26 6.2.25 6.2.24 6.2.23 6.2.22 6.2.21 6.2.20 6.2.19 6.2.18 6.2.17 6.2.16 6.2.15 6.2.10 6.1.13 6.1.12 6.1.11 6.1.10 6.0.18 6.0.17 6.0.16 6.0.15 6.0.14 5.2.8 5.2.7 5.1.7 5.1.6
         for old_fdb_server_version in 7.3.43 7.3.27 7.1.61 7.1.57 7.1.43 7.1.35 7.1.33 7.1.27 7.1.25 7.1.23 7.1.19 6.3.18 6.3.17 6.3.16 6.3.15 6.3.13 6.3.12 6.3.9; do \
             curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o ${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version}; \
         done && \
         chmod +x ${OLD_FDB_BINARY_DIR}/* && \
         curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o /usr/lib64/libfdb_c_${FDB_VERSION}.so && \
-        ln -s /usr/lib64/libfdb_c_${FDB_VERSION}.so /usr/lib64/libfdb_c.so && \
+        ln -s /usr/lib64/libfdb_c_${FDB_VERSION}.so /usr/lib64/libfdb_c.so; \
     fi
 
 # Download swift binaries
 ARG SWIFT_SIGNING_KEY=8A7495662C3CD4AE18D95637FAF6989E1BC16FEA
 ARG SWIFT_PLATFORM=centos
-ARG OS_MAJOR_VER=9
+ARG OS_MAJOR_VER=7
 ARG SWIFT_WEBROOT=https://download.swift.org/development
 
 ENV SWIFT_SIGNING_KEY=$SWIFT_SIGNING_KEY \
