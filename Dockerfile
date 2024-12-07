@@ -10,6 +10,7 @@ RUN dnf update -y && \
     dnf config-manager --set-enabled crb && \
     dnf install -y \
         bzip2 \
+        xz \
         criu \
         gettext \
         golang \
