@@ -8,6 +8,7 @@ RUN dnf -y update && \
         yum-utils && \
     dnf -y install \
         gettext \
+        jq-1.6 \
         python3-pip && \
     dnf -y clean all --enablerepo='*' && \
     case $(uname -m) in \
