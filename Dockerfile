@@ -23,7 +23,8 @@ RUN dnf update -y && \
         ruby \
         ruby-devel \
         libffi-devel \
-        libatomic && \
+        libatomic \
+        valgrind && \
     pip3 install \
         python-dateutil \
         subprocess32 \
@@ -42,20 +43,6 @@ RUN dnf update -y && \
         joshua && \
     mkdir -p /var/joshua && \
     chown -R joshua:joshua /var/joshua && \
-    rm -rf /tmp/*
-
-# valgrind
-
-RUN curl -Ls --retry 5 --fail https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 -o valgrind.tar.bz2 && \
-    echo "8536c031dbe078d342f121fa881a9ecd205cb5a78e639005ad570011bdb9f3c6  valgrind.tar.bz2" > valgrind-sha.txt && \
-    sha256sum -c valgrind-sha.txt && \
-    mkdir valgrind && \
-    tar --strip-components 1 --no-same-owner --no-same-permissions --directory valgrind -xjf valgrind.tar.bz2 && \
-    cd valgrind && \
-    ./configure --enable-only64bit --enable-lto && \
-    make && \
-    make install && \
-    cd .. && \
     rm -rf /tmp/*
 
 # Install Joshua client
