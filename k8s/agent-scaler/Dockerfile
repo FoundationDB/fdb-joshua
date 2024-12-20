@@ -47,6 +47,7 @@ ENV CHECK_DELAY=10
 ENV AGENT_TIMEOUT=300
 ENV AGENT_TAG=${AGENT_TAG}
 ENV NAMESPACE=joshua
+ENV AGENT_NAME=joshua-agent
 
 # Entry point
 ENTRYPOINT /tools/agent-scaler.sh

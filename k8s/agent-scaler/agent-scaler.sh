@@ -24,7 +24,7 @@ while true; do
 
     if [ $use_k8s_ttl_controller == false ] ; then
       # cleanup finished jobs (status 1/1)
-      for job in $(kubectl get jobs -n "${namespace}" --no-headers | grep -E -e 'joshua-agent-[0-9-]*\s*1/1' | awk '{print $1}'); do
+      for job in $(kubectl get jobs -n "${namespace}" --no-headers | grep -E -e "${AGENT_NAME}" | awk '{if ($2 == "Complete") { print $1; } }'); do
           echo "=== Job $job Completed ==="
           kubectl delete job "$job" -n "${namespace}"
       done

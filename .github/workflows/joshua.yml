@@ -16,10 +16,10 @@ jobs:
       - name: Install fdb and dependencies
         run: |
           sudo mkdir -p /var/lib/foundationdb/data
-          wget https://github.com/apple/foundationdb/releases/download/6.3.18/foundationdb-clients_6.3.18-1_amd64.deb
-          wget https://github.com/apple/foundationdb/releases/download/6.3.18/foundationdb-server_6.3.18-1_amd64.deb
-          echo "d18ad92f081827e723fe1e554948a587a0b6069f95f050564821b3ecdb8b4daf  foundationdb-clients_6.3.18-1_amd64.deb" >> checks.txt
-          echo "d5e452b71f85d6e5d16a2d707b8699a4ae1addeaaa456f002007b81d30bb39bf  foundationdb-server_6.3.18-1_amd64.deb" >> checks.txt
+          wget https://github.com/apple/foundationdb/releases/download/7.1.57/foundationdb-clients_7.1.57-1_amd64.deb
+          wget https://github.com/apple/foundationdb/releases/download/7.1.57/foundationdb-server_7.1.57-1_amd64.deb
+          echo "c5bd7c7a6ee4a3bacb9127ba53aa0d16700c987e2dbc7931c0441b8c5f1a01b6  foundationdb-clients_7.1.57-1_amd64.deb" >> checks.txt
+          echo "a4ffc466f266d4b53c972b73914bf2d13cc07cbdb817c6d3d9c529cc134990ba  foundationdb-server_7.1.57-1_amd64.deb" >> checks.txt
           sha256sum -c checks.txt && sudo dpkg -i *.deb
           sudo pip3 install -r test-requirements.txt
 
