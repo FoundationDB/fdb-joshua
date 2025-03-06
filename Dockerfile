@@ -60,7 +60,7 @@ ARG FDB_VERSION="7.1.57"
 RUN if [ "$(uname -p)" == "x86_64" ]; then \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
-        for old_fdb_server_version in 7.3.57 7.3.43 7.3.27 7.1.61 7.1.57 7.1.43 7.1.35 7.1.33 7.1.27 7.1.25 7.1.23 7.1.19 6.3.18 6.3.17 6.3.16 6.3.15 6.3.13 6.3.12 6.3.9; do \
+        for old_fdb_server_version in 7.3.63, 7.3.57 7.3.43 7.3.27 7.1.61 7.1.57 7.1.43 7.1.35 7.1.33 7.1.27 7.1.25 7.1.23 7.1.19 6.3.18 6.3.17 6.3.16 6.3.15 6.3.13 6.3.12 6.3.9; do \
             curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o ${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version}; \
         done && \
         chmod +x ${OLD_FDB_BINARY_DIR}/* && \
