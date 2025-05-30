@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 
+# This script acts as a Kubernetes agent scaler for Joshua test jobs.
+# Its primary responsibilities are:
+# 1. Periodically cleaning up completed or failed Joshua agent jobs specific
+#    to the AGENT_NAME it's configured for (e.g., joshua-agent, joshua-rhel9-agent).
+# 2. Monitoring the queue of pending test ensembles (via /tools/ensemble_count.py).
+# 3. Provisioning new Joshua agent jobs of its configured AGENT_NAME type if there
+#    is demand and the total number of active Joshua jobs (of any type) in the
+#    namespace is below the global MAX_JOBS limit.
+# It uses kubectl for all Kubernetes interactions and is configured via
+# environment variables such as BATCH_SIZE, MAX_JOBS, CHECK_DELAY, AGENT_NAME,
+# and AGENT_TAG (for the job template).
+
 batch_size=${BATCH_SIZE:-1}
 max_jobs=${MAX_JOBS:-10}
 check_delay=${CHECK_DELAY:-10}
@@ -9,6 +21,9 @@ use_k8s_ttl_controller=${USE_K8S_TTL_CONTROLLER:-false}
 restart_agents_on_boot=${RESTART_AGENTS_ON_BOOT:-false}
 
 namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+
+# Default AGENT_NAME to "joshua-agent" if not set or empty
+export AGENT_NAME=${AGENT_NAME:-"joshua-agent"}
 
 # if AGENT_TAG is not set through --build-arg,
 # use the default agent image and tag
