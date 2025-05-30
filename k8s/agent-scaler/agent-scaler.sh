@@ -11,6 +11,8 @@
 # It uses kubectl for all Kubernetes interactions and is configured via
 # environment variables such as BATCH_SIZE, MAX_JOBS, CHECK_DELAY, AGENT_NAME,
 # and AGENT_TAG (for the job template).
+#
+# This script is intended to work for joshua-agent and for joshua-rhel9-agent.
 
 batch_size=${BATCH_SIZE:-1}
 max_jobs=${MAX_JOBS:-10}
