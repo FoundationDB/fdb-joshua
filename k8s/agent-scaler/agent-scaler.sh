@@ -10,7 +10,7 @@
 #    namespace is below the global MAX_JOBS limit.
 # It uses kubectl for all Kubernetes interactions and is configured via
 # environment variables such as BATCH_SIZE, MAX_JOBS, CHECK_DELAY, AGENT_NAME,
-# and AGENT_TAG (for the job template).
+# FDB_CLUSTER_FILE, and AGENT_TAG (for the job template).
 #
 # This script is intended to work for joshua-agent and for joshua-rhel9-agent.
 
@@ -30,6 +30,10 @@ export AGENT_NAME=${AGENT_NAME:-"joshua-agent"}
 # if AGENT_TAG is not set through --build-arg,
 # use the default agent image and tag
 export AGENT_TAG=${AGENT_TAG:-"foundationdb/joshua-agent:latest"}
+
+# Path to the FoundationDB cluster file
+# This should be available within the pod, e.g., mounted from a ConfigMap
+export FDB_CLUSTER_FILE=${FDB_CLUSTER_FILE:-"/etc/foundationdb/fdb.cluster"}
 
 if [ $restart_agents_on_boot == true ]; then
     # mark existing jobs to exit after the current test completes
@@ -63,13 +67,19 @@ while true; do
     fi
 
     # get the current ensembles
-    num_ensembles=$(python3 /tools/ensemble_count.py)
+    # Pass the cluster file to the ensemble_count.py script
+    if [ ! -f "${FDB_CLUSTER_FILE}" ]; then
+        echo "ERROR: FDB Cluster File ${FDB_CLUSTER_FILE} not found! Cannot count ensembles. Assuming 0."
+        num_ensembles=0
+    else
+        num_ensembles=$(python3 /tools/ensemble_count.py -C "${FDB_CLUSTER_FILE}")
+    fi
     echo "${num_ensembles} ensembles in the queue (global)"
 
-    # get the current number of ALL active joshua jobs (rhel9, non-rhel9, etc.)
-    # This counts jobs that are not yet successfully completed or failed.
-    num_all_active_joshua_jobs=$(kubectl get jobs -n "${namespace}" -o jsonpath='{range .items[?(!(@.status.conditions[?(@.type=="Complete"&&@.status=="True")]) && !(@.status.conditions[?(@.type=="Failed"&&@.status=="True")]))]}{.metadata.name}{"\\n"}{end}' 2>/dev/null | grep -Ec "^joshua-(rhel9-)?agent-[0-9]+(-[0-9]+)?$")
-    echo "${num_all_active_joshua_jobs} total active joshua jobs (any type) are running. Global max_jobs: ${max_jobs}."
+    # Calculate the number of all active Joshua jobs (any type)
+    # Active jobs are those with .status.active > 0 (i.e., pods are running/pending but not yet succeeded/failed overall for the job)
+    num_all_active_joshua_jobs=$(kubectl get jobs -n "${namespace}" -o 'jsonpath={range .items[?(@.status.active > 0)]}{.metadata.name}{"\n"}{end}' 2>/dev/null | grep -Ec '^joshua-(rhel9-)?agent-[0-9]+(-[0-9]+)?$')
+    echo "${num_all_active_joshua_jobs} total active joshua jobs any type are running. Global max_jobs: ${max_jobs}."
 
     new_jobs=0 # Initialize jobs to start this cycle for this scaler
 
