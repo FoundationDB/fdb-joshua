@@ -58,10 +58,19 @@ while true; do
       # The number of fields to cut for the job prefix depends on the number of hyphens in AGENT_NAME itself, plus one for the timestamp part.
       num_hyphen_fields_in_agent_name=$(echo "${AGENT_NAME}" | awk -F'-' '{print NF}')
       job_prefix_fields=$((num_hyphen_fields_in_agent_name + 1))
-      for job_prefix in $(kubectl get pods -n "${namespace}" --no-headers | { grep -E "^${AGENT_NAME}-[0-9]+(-[0-9]+)?-" || true; } | { grep -E -e "Completed" -e "Error" || true; } | cut -f 1-${job_prefix_fields} -d '-'); do
-          if [ -n "$job_prefix" ]; then
-            echo "=== Deleting Job based on pod status: $job_prefix === (AGENT_NAME: ${AGENT_NAME})"
-            kubectl delete job "$job_prefix" -n "${namespace}" --ignore-not-found=true
+      for job_prefix_from_pod in $(kubectl get pods -n "${namespace}" --no-headers | { grep -E "^${AGENT_NAME}-[0-9]+(-[0-9]+)?-" || true; } | { grep -E -e "Completed" -e "Error" || true; } | cut -f 1-${job_prefix_fields} -d '-'); do
+          if [ -n "$job_prefix_from_pod" ]; then
+            # Validate that the derived job_prefix_from_pod actually matches the expected format for this agent's jobs
+            if [[ "${job_prefix_from_pod}" =~ ^${AGENT_NAME}-[0-9]+(-[0-9]+)?$ ]]; then
+              echo "=== Deleting Job based on pod status: $job_prefix_from_pod === (AGENT_NAME: ${AGENT_NAME})"
+              kubectl delete job "$job_prefix_from_pod" -n "${namespace}" --ignore-not-found=true
+            else
+              # This case can occur if AGENT_NAME is unusual (e.g., 'foo-bar' and a pod 'foo-bar-baz-TIMESTAMP-...' exists)
+              # or if the pod naming doesn't strictly follow AGENT_NAME-TIMESTAMP-SUFFIX.
+              # The initial grep on pods already ensures it starts with AGENT_NAME-TIMESTAMP_LIKE_PATTERN-,
+              # so this condition means the 'cut' command resulted in a prefix not matching AGENT_NAME-TIMESTAMP.
+              echo "=== WARNING: Pod for AGENT_NAME ${AGENT_NAME} yielded job prefix candidate '${job_prefix_from_pod}' that does not match expected pattern '^${AGENT_NAME}-[0-9]+(-[0-9]+)?$'. Skipping delete. ==="
+            fi
           fi
       done
     fi
