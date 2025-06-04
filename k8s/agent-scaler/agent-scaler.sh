@@ -48,7 +48,16 @@ while true; do
       # Filter by AGENT_NAME and check 3rd column for "1/1" (completions)
       for job in $(kubectl get jobs -n "${namespace}" --no-headers | { grep -E -e "^${AGENT_NAME}-[0-9]+(-[0-9]+)?\\s" || true; } | awk '$3 == "1/1" {print $1}'); do
           echo "=== Job $job Completed (1/1) - deleting from get jobs === (AGENT_NAME: ${AGENT_NAME})"
-          kubectl delete job "$job" -n "${namespace}"
+          kubectl delete job "$job" -n "${namespace}" --ignore-not-found=true
+      done
+
+      # cleanup explicitly Failed jobs
+      # Filter by AGENT_NAME and job status condition "Failed"="True"
+      for job in $(kubectl get jobs -n "${namespace}" -o jsonpath='{range .items[?(@.status.conditions[*].type=="Failed" && @.status.conditions[*].status=="True")]}{.metadata.name}{"\\n"}{end}' 2>/dev/null | { grep -E "^${AGENT_NAME}-[0-9]+(-[0-9]+)?$" || true; }); do
+          if [ -n "$job" ]; then # Ensure job name is not empty
+              echo "=== Job $job is Failed - deleting === (AGENT_NAME: ${AGENT_NAME})"
+              kubectl delete job "$job" -n "${namespace}" --ignore-not-found=true
+          fi
       done
 
       # cleanup failed/completed jobs by looking at pods for the current AGENT_NAME
