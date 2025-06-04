@@ -183,7 +183,7 @@ def is_message(text):
 
 def unwrap_message(text):
     root = ET.fromstring(text)
-    return root.getchildren()[0].attrib
+    return next(iter(root)).attrib
 
 
 def load_datetime(string):
@@ -224,7 +224,7 @@ def identify_existing_ensembles(tr, ensembles):
 
 
 @transactional
-def list_and_watch_active_ensembles(tr) -> Tuple[List[str], fdb.Future]:
+def list_and_watch_active_ensembles(tr) -> tuple[list[str], fdb.Future]:
     return _list_and_watch_ensembles(tr, dir_active, dir_active_changes)
 
 
@@ -258,7 +258,7 @@ def _unpack_property(ensemble, key, value, into):
         into[t[1]] = struct.unpack("<Q", value)[0]
 
 
-def _list_ensembles(tr, dir) -> List[Tuple[str, Dict]]:
+def _list_ensembles(tr, dir) -> list[tuple[str, dict]]:
     prop_reads = []
     for k, v in tr[dir.range()]:
         (ensemble,) = dir.unpack(k)
@@ -281,17 +281,17 @@ def _list_ensembles(tr, dir) -> List[Tuple[str, Dict]]:
 
 
 @transactional
-def list_active_ensembles(tr) -> List[Tuple[str, Dict]]:
+def list_active_ensembles(tr) -> list[tuple[str, dict]]:
     return _list_ensembles(tr, dir_active)
 
 
 @transactional
-def list_sanity_ensembles(tr) -> List[Tuple[str, Dict]]:
+def list_sanity_ensembles(tr) -> list[tuple[str, dict]]:
     return _list_ensembles(tr, dir_sanity)
 
 
-def list_all_ensembles() -> List[Tuple[str, Dict]]:
-    ensembles: List[Tuple[str, Dict]] = []
+def list_all_ensembles() -> list[tuple[str, dict]]:
+    ensembles: list[tuple[str, dict]] = []
     r = dir_all_ensembles.range()
     start = r.start
     tr = db.create_transaction()
@@ -405,7 +405,7 @@ def _create_ensemble(tr, ensemble_id, properties, sanity=False):
     dir, changes = get_dir_changes(sanity)
 
     if tr[dir_all_ensembles[ensemble_id]] != None:
-        print("{} already inserted".format(ensemble_id))
+        print(f"{ensemble_id} already inserted")
         return  # Already inserted
     tr[dir_all_ensembles[ensemble_id]] = b""
     for k, v in properties.items():
@@ -458,7 +458,7 @@ def stop_user_ensembles(username, sanity=False):
 
 def get_active_ensembles(
     stopped, sanity=False, username=None
-) -> List[Tuple[str, Dict]]:
+) -> list[tuple[str, dict]]:
     if stopped:
         ensemble_list = list_all_ensembles()
     elif sanity:
@@ -655,7 +655,7 @@ def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> in
 
 def _get_seeds_and_heartbeats(
     ensemble_id: str, tr: fdb.Transaction
-) -> List[Tuple[int, float]]:
+) -> list[tuple[int, float]]:
     result = []
     for k, v in tr.snapshot[dir_ensemble_incomplete[ensemble_id]["heartbeat"].range()]:
         (seed,) = dir_ensemble_incomplete[ensemble_id]["heartbeat"].unpack(k)
@@ -718,7 +718,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
 
 
 @transactional
-def show_in_progress(tr: fdb.Transaction, ensemble_id: str) -> List[Tuple[int, Dict]]:
+def show_in_progress(tr: fdb.Transaction, ensemble_id: str) -> list[tuple[int, dict]]:
     """
     Returns a list of properties for in progress tests
     """

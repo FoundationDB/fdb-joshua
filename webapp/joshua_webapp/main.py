@@ -167,7 +167,7 @@ def jobtail():
                          stopped=False,
                          username=username)
     sys.stdout = stdout_backup
-    filehandle = open(jobfile, 'r')
+    filehandle = open(jobfile)
     return Response(filehandle.read(), mimetype='text/plain')
 
 
@@ -205,7 +205,7 @@ def upload():
                                                    properties, tarfile, False)
         app.logger.info('Ensemble {} created with properties: {}!'.format(
             ensemble_id, properties))
-        flash('Ensemble {} created!'.format(ensemble_id))
+        flash(f'Ensemble {ensemble_id} created!')
     return render_template('upload.html', user=current_user, form=form)
 
 
@@ -213,7 +213,7 @@ def upload():
 def action():
     ensemble = request.args.get('ensemble')
     act = request.args.get('action')
-    app.logger.debug('Action {} on ensemble {}'.format(act, ensemble))
-    flash('Action {} on ensemble {}'.format(act, ensemble))
+    app.logger.debug(f'Action {act} on ensemble {ensemble}')
+    flash(f'Action {act} on ensemble {ensemble}')
     joshua_model.stop_ensemble(ensemble, sanity=True)
     return redirect(url_for('main.job'))

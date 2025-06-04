@@ -72,7 +72,7 @@ class JoshuaError(Exception):
 
 
 # This is used to handle waiting for a given amount of time.
-class TimeoutFuture(object):
+class TimeoutFuture:
     def __init__(self, timeout):
         self.cb_list = []
         self.timer = threading.Timer(timeout, self._do_on_ready)
@@ -263,7 +263,7 @@ def tar_artifacts(ensemble, seed, sources, dest, work_dir=None):
         )
     try:
         # Create a temporary directory in the destination where we will store the results.
-        out_name = "joshua-run-{0}-{1}".format(ensemble, seed)
+        out_name = f"joshua-run-{ensemble}-{seed}"
         tmpdir = os.path.join(work_dir, out_name)
         os.makedirs(tmpdir)
 
@@ -413,7 +413,7 @@ class AsyncDone:
     def run(self, command, cwd, env):
         cmd_path = os.path.join(cwd, command[0])
         if not os.path.exists(cmd_path):
-            log("{} doesn't exist".format(cmd_path))
+            log(f"{cmd_path} doesn't exist")
             return
         process = subprocess.Popen(
             command,
@@ -528,7 +528,7 @@ class AsyncEnsemble:
         k8s_namespace_file = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
         if env.get('HOSTNAME', False) and os.path.isfile(k8s_namespace_file):
             pod_name = env['HOSTNAME']
-            with open(k8s_namespace_file, 'r') as f:
+            with open(k8s_namespace_file) as f:
                 namespace = f.read()
 
             # Get the cluster config
@@ -554,7 +554,7 @@ class AsyncEnsemble:
         # Set environment variable to use the created temporary directory as its temporary directory.
         env["TMP"] = os.path.join(where, "tmp")
 
-        log("{} {} {}".format(ensemble, seed, command))
+        log(f"{ensemble} {seed} {command}")
 
         # Run the test and log output
         process = subprocess.Popen(
@@ -577,7 +577,7 @@ class AsyncEnsemble:
             try:
                 output, _ = process.communicate(timeout=1)
                 retcode = process.poll()
-                log("exit code: {}".format(retcode))
+                log(f"exit code: {retcode}")
                 # output = output.decode('utf-8')
 
                 break
@@ -642,7 +642,7 @@ class AsyncEnsemble:
         try:
             i = 0
             while os.path.exists(to_write):
-                to_write = os.path.join(where, "tmp", "console-{0}.log".format(i))
+                to_write = os.path.join(where, "tmp", f"console-{i}.log")
                 i += 1
 
             with open(to_write, "wb") as fout:
@@ -808,7 +808,7 @@ def agent(
         while True:
             # Break if the stop file is defined and present
             if stop_file and os.path.exists(stop_file):
-                log("Exiting due to existing stopfile: {}".format(stop_file))
+                log(f"Exiting due to existing stopfile: {stop_file}")
                 break
             # Break if requested
             if stopAgent():
@@ -885,7 +885,7 @@ def agent(
             # Throw away local state for ensembles that are no longer active
             local_ensemble_dirs = set(os.listdir(ensemble_dir(basepath=work_dir)))
             for e in (local_ensemble_dirs - set(ensembles)) - set(sanity_ensembles):
-                log("removing {} {}".format(e, ensemble_dir(e, basepath=work_dir)))
+                log(f"removing {e} {ensemble_dir(e, basepath=work_dir)}")
                 shutil.rmtree(
                     ensemble_dir(e, basepath=work_dir), True
                 )  # SOMEDAY: this sometimes throws errors, but we don't know why and it isn't that important
@@ -906,7 +906,7 @@ def agent(
                 try:
                     watch.wait_for_any(watch, sanity_watch, TimeoutFuture(1.0))
                 except Exception as e:
-                    log("watch error: {}".format(e))
+                    log(f"watch error: {e}")
                     watch = None
                     time.sleep(1.0)
 
