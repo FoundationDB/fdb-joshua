@@ -30,4 +30,4 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(128))
 
     def __repr__(self):
-        return '<User {} {}>'.format(self.username, self.email)
+        return f'<User {self.username} {self.email}>'

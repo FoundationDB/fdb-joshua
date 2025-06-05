@@ -87,9 +87,9 @@ def upload_ensemble():
     try:
         properties = schema.load(request_data)
     except Exception as err:
-        app.logger.info('api_upload: Validation error: {}'.format(err))
+        app.logger.info(f'api_upload: Validation error: {err}')
         return {
-            "message": 'api_upload: Post field validation error: {}'.format(err)
+            "message": f'api_upload: Post field validation error: {err}'
         }, 422
     fileobj = request_files['file']
     filename = secure_filename(fileobj.filename)
@@ -102,7 +102,7 @@ def upload_ensemble():
     if not tarfile.is_tarfile(saved_file):
         os.remove(saved_file)
         app.logger.info(
-            'api_upload: not a valid tar file: {}'.format(saved_file))
+            f'api_upload: not a valid tar file: {saved_file}')
         return {"error": 'api_upload: not a valid tar file'}, 400
 
     # convert to non-unicode string for username
@@ -128,7 +128,7 @@ def stop_ensemble(ensemble):
     properties = joshua_model.get_ensemble_properties(ensemble)
     sanity = properties[
         'sanity'] if properties and 'sanity' in properties else True
-    app.logger.info('Stop ensemble {} {}'.format(ensemble, sanity))
+    app.logger.info(f'Stop ensemble {ensemble} {sanity}')
     joshua_model.stop_ensemble(ensemble, sanity=sanity)
     return jsonify('OK'), 200
 
@@ -139,6 +139,6 @@ def resume_ensemble(ensemble):
     properties = joshua_model.get_ensemble_properties(ensemble)
     sanity = properties[
         'sanity'] if properties and 'sanity' in properties else True
-    app.logger.info('Resume ensemble {} {}'.format(ensemble, sanity))
+    app.logger.info(f'Resume ensemble {ensemble} {sanity}')
     joshua_model.resume_ensemble(ensemble, sanity=sanity)
     return jsonify('OK'), 200

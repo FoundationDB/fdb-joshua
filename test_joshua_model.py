@@ -50,7 +50,7 @@ class EnsembleFactory:
         return factory
 
     def add_bash_script(self, name, contents):
-        script = "#!/bin/bash\n{}".format(contents).encode("utf-8")
+        script = f"#!/bin/bash\n{contents}".encode("utf-8")
         entry = tarfile.TarInfo(name)
         entry.mode = 0o755
         entry.size = len(script)
@@ -119,9 +119,9 @@ def fdb_cluster():
     port = getFreePort()
     cluster_file = os.path.join(tmp_dir, "fdb.cluster")
     with open(cluster_file, "w") as f:
-        f.write("abdcefg:abcdefg@127.0.0.1:{}".format(port))
+        f.write(f"abdcefg:abcdefg@127.0.0.1:{port}")
     proc = subprocess.Popen(
-        ["fdbserver", "-p", "auto:{}".format(port), "-C", cluster_file], cwd=tmp_dir
+        ["fdbserver", "-p", f"auto:{port}", "-C", cluster_file], cwd=tmp_dir
     )
 
     subprocess.check_output(

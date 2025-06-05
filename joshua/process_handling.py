@@ -107,7 +107,7 @@ def get_environment(pid):
                     var_strs,
                 )
             )
-    except IOError:
+    except OSError:
         # This is not our process, so we can't open the file.
         return dict()
 
@@ -238,7 +238,7 @@ class TestProcessHandling(unittest.TestCase):
 
     def test_mark_env(self):
         env = mark_environment(dict())
-        self.assertEquals(os.getpid(), int(env[VAR_NAME]))
+        self.assertEqual(os.getpid(), int(env[VAR_NAME]))
 
     def test_get_all_pids(self):
         if sys.platform != "linux2":
@@ -268,9 +268,9 @@ class TestProcessHandling(unittest.TestCase):
             # Make sure the environment for this process is the same
             # as we know it to be.
             env = get_environment(str(os.getpid()))
-            self.assertEquals(env, os.environ)
+            self.assertEqual(env, os.environ)
             env = get_environment(os.getpid())
-            self.assertEquals(env, os.environ)
+            self.assertEqual(env, os.environ)
 
     def test_retrieve_children(self):
         if sys.platform != "linux2":
@@ -285,7 +285,7 @@ class TestProcessHandling(unittest.TestCase):
                     stderr=subprocess.PIPE,
                 )
             pids = retrieve_children()
-            self.assertEquals(len(pids), 10)
+            self.assertEqual(len(pids), 10)
 
     def test_kill_all_children(self):
         if sys.platform != "linux2":
@@ -300,7 +300,7 @@ class TestProcessHandling(unittest.TestCase):
                     stderr=subprocess.PIPE,
                 )
             self.assertTrue(kill_all_children())
-            self.assertEquals(len(retrieve_children()), 0)
+            self.assertEqual(len(retrieve_children()), 0)
 
     def test_wait_for_death(self):
         process = subprocess.Popen(

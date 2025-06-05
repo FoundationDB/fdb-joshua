@@ -41,7 +41,7 @@ def get_username():
 def format_ensemble(e, props):
     return "  %-50s %s" % (
         e,
-        " ".join("{}={}".format(k, v) for k, v in sorted(props.items())),
+        " ".join(f"{k}={v}" for k, v in sorted(props.items())),
     )
 
 
@@ -75,7 +75,7 @@ def list_active_ensembles(
             for props in joshua_model.show_in_progress(e):
                 print(
                     "\t{}".format(
-                        " ".join("{}={}".format(k, v) for k, v in sorted(props.items()))
+                        " ".join(f"{k}={v}" for k, v in sorted(props.items()))
                     )
                 )
 
@@ -116,11 +116,11 @@ def start_ensemble(
         properties["timeout"] = timeout
 
     if fail_fast > 0 and not no_fail_fast:
-        print("Note: Ensemble will complete after {} failed results.".format(fail_fast))
+        print(f"Note: Ensemble will complete after {fail_fast} failed results.")
         properties["fail_fast"] = fail_fast
 
     if max_runs > 0 and not no_max_runs:
-        print("Note: Ensemble will complete after {} runs.".format(max_runs))
+        print(f"Note: Ensemble will complete after {max_runs} runs.")
         properties["max_runs"] = max_runs
 
     if command:
@@ -304,7 +304,7 @@ def _delete_helper(to_delete, yes=False, dryrun=False, sanity=False):
 
     if not yes and not dryrun:
         response = input("Do you want to delete these ensembles [y/n]? ")
-        if response.strip().lower() not in set(["y", "yes"]):
+        if response.strip().lower() not in {"y", "yes"}:
             print("Negative response received. Not performing deletion.")
             return
 
@@ -381,10 +381,10 @@ def download_ensemble(ensemble, out=None, force=False, sanity=False, **args):
 
     if out is None:
         out_file = os.path.abspath(
-            os.path.join(os.getcwd(), "{}.tar.gz".format(ensemble))
+            os.path.join(os.getcwd(), f"{ensemble}.tar.gz")
         )
     elif os.path.isdir(out):
-        out_file = os.path.abspath(os.path.join(out, "{}.tar.gz".format(ensemble)))
+        out_file = os.path.abspath(os.path.join(out, f"{ensemble}.tar.gz"))
     else:
         out_file = os.path.abspath(out)
         if not os.path.isdir(os.path.dirname(out_file)):
@@ -401,7 +401,7 @@ def download_ensemble(ensemble, out=None, force=False, sanity=False, **args):
             return
 
     if not force and os.path.isfile(out_file):
-        print("File {} already exists. Refusing to overwrite file.".format(out_file))
+        print(f"File {out_file} already exists. Refusing to overwrite file.")
         return
 
     # Treat slash characters as subdirectories
@@ -409,7 +409,7 @@ def download_ensemble(ensemble, out=None, force=False, sanity=False, **args):
     if ensemble_dir:
         os.mkdir(ensemble_dir)
 
-    print("Downloading ensemble {} into {}...".format(ensemble, out_file))
+    print(f"Downloading ensemble {ensemble} into {out_file}...")
     with open(out_file, "wb") as fout:
         joshua_model.get_ensemble_data(ensemble_id=ensemble, outfile=fout)
     print("Download completed")

@@ -70,7 +70,7 @@ for module in modules:
         + module.platforms
         + [
             "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: Implementation :: CPython",
         ],
     )
