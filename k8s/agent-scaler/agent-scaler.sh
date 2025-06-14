@@ -99,17 +99,27 @@ while true; do
         # How many slots are available globally before hitting max_jobs
         slots_available_globally=$((max_jobs - num_all_active_joshua_jobs))
 
-        # Determine how many jobs this scaler instance will attempt to start in this cycle
-        num_to_attempt_this_cycle=${batch_size} # Start with batch_size as the base
+        # Determine how many jobs this scaler instance will attempt to start in this cycle.
+        # We want to be aggressive but also bounded.
+        # Option 1: How many jobs would we need to clear the queue in one go (using batch_size)?
+        num_to_clear_queue=$(( (num_ensembles + batch_size - 1) / batch_size ))
 
-        # If MAX_NEW_JOBS is set and is smaller than current num_to_attempt_this_cycle, respect it
+        # Start with the most aggressive number, capped by available slots.
+        num_to_attempt_this_cycle=$(( num_to_clear_queue < slots_available_globally ? num_to_clear_queue : slots_available_globally ))
+
+        # If MAX_NEW_JOBS is set, it acts as a ceiling for a single scaling event.
         if [ -n "${MAX_NEW_JOBS}" ]; then
             if [ "${MAX_NEW_JOBS}" -lt "${num_to_attempt_this_cycle}" ]; then
                 num_to_attempt_this_cycle=${MAX_NEW_JOBS}
             fi
         fi
 
-        # The actual number of new jobs for this scaler is the minimum of what it wants to attempt 
+        # As a floor, always try to start at least batch_size if there's room.
+        if [ "${num_to_attempt_this_cycle}" -lt "${batch_size}" ] && [ "${slots_available_globally}" -ge "${batch_size}" ]; then
+            num_to_attempt_this_cycle=${batch_size}
+        fi
+
+        # The actual number of new jobs for this scaler is the minimum of what it wants to attempt
         # and what's available globally.
         if [ "${num_to_attempt_this_cycle}" -gt "${slots_available_globally}" ]; then
             actual_new_jobs_for_this_scaler=${slots_available_globally}
