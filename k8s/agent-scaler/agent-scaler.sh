@@ -14,6 +14,7 @@
 #
 # This script is intended to work for joshua-agent and for joshua-rhel9-agent.
 
+# batch_size is how many joshua runs each pod instance is expected to do before the pod completes.
 batch_size=${BATCH_SIZE:-1}
 max_jobs=${MAX_JOBS:-10}
 check_delay=${CHECK_DELAY:-10}
@@ -25,6 +26,7 @@ restart_agents_on_boot=${RESTART_AGENTS_ON_BOOT:-false}
 namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
 # Default AGENT_NAME to "joshua-agent" if not set or empty
+# Its 'joshua-rhel9-agent' for rockylinux9 instances.
 export AGENT_NAME=${AGENT_NAME:-"joshua-agent"}
 
 # if AGENT_TAG is not set through --build-arg,
@@ -75,7 +77,7 @@ while true; do
       done
     fi
 
-    # get the current ensembles
+    # Get the current ensembles
     # Pass the cluster file to the ensemble_count.py script
     if [ ! -f "${FDB_CLUSTER_FILE}" ]; then
         echo "ERROR: FDB Cluster File ${FDB_CLUSTER_FILE} not found! Cannot count ensembles. Assuming 0."
@@ -85,10 +87,10 @@ while true; do
     fi
     echo "${num_ensembles} ensembles in the queue (global)"
 
-    # Calculate the number of all active Joshua jobs (any type)
+    # Calculate the number of all active Joshua jobs (any type) -- 'jobs' are effectively pod instances (a pod instance usually does batch_size joshua runs and then completes).
     # Active jobs are those with .status.active > 0 (i.e., pods are running/pending but not yet succeeded/failed overall for the job)
     num_all_active_joshua_jobs=$(kubectl get jobs -n "${namespace}" -o 'jsonpath={range .items[?(@.status.active > 0)]}{.metadata.name}{"\n"}{end}' 2>/dev/null | grep -Ec '^joshua-(rhel9-)?agent-[0-9]+(-[0-9]+)?$')
-    echo "${num_all_active_joshua_jobs} total active joshua jobs any type are running. Global max_jobs: ${max_jobs}."
+    echo "${num_all_active_joshua_jobs} total active joshua jobs of any type that are running. Global max_jobs: ${max_jobs}."
 
     new_jobs=0 # Initialize jobs to start this cycle for this scaler
 
@@ -99,27 +101,33 @@ while true; do
         # How many slots are available globally before hitting max_jobs
         slots_available_globally=$((max_jobs - num_all_active_joshua_jobs))
 
-        # Determine how many jobs this scaler instance will attempt to start in this cycle
-        num_to_attempt_this_cycle=${batch_size} # Start with batch_size as the base
+        # Determine how many jobs to create. The goal is to create enough jobs to
+        # process the entire queue, where each job is assumed to handle 'batch_size'
+        # ensembles. This is then capped by various limits.
 
-        # If MAX_NEW_JOBS is set and is smaller than current num_to_attempt_this_cycle, respect it
+        # 1. Calculate the ideal number of jobs needed to clear the queue.
+        #    This is ceil(num_ensembles / batch_size).
+        if [ "${batch_size}" -gt 0 ]; then
+            num_to_attempt=$(( (num_ensembles + batch_size - 1) / batch_size ))
+        else
+            # Avoid division by zero; fall back to one job per ensemble if batch_size is 0.
+            num_to_attempt=${num_ensembles}
+        fi
+
+        # 2. The number of new jobs cannot exceed the globally available slots.
+        if [ "${num_to_attempt}" -gt "${slots_available_globally}" ]; then
+            num_to_attempt=${slots_available_globally}
+        fi
+
+        # 3. The number of new jobs cannot exceed the per-cycle limit, if one is set.
         if [ -n "${MAX_NEW_JOBS}" ]; then
-            if [ "${MAX_NEW_JOBS}" -lt "${num_to_attempt_this_cycle}" ]; then
-                num_to_attempt_this_cycle=${MAX_NEW_JOBS}
+            if [ "${num_to_attempt}" -gt "${MAX_NEW_JOBS}" ]; then
+                num_to_attempt=${MAX_NEW_JOBS}
             fi
         fi
 
-        # The actual number of new jobs for this scaler is the minimum of what it wants to attempt 
-        # and what's available globally.
-        if [ "${num_to_attempt_this_cycle}" -gt "${slots_available_globally}" ]; then
-            actual_new_jobs_for_this_scaler=${slots_available_globally}
-        else
-            actual_new_jobs_for_this_scaler=${num_to_attempt_this_cycle}
-        fi
-        
-        # Ensure we are trying to start a positive number of jobs
-        if [ "${actual_new_jobs_for_this_scaler}" -gt 0 ]; then
-            new_jobs=${actual_new_jobs_for_this_scaler}
+        if [ "${num_to_attempt}" -gt 0 ]; then
+            new_jobs=${num_to_attempt}
         fi
 
         idx=0
