@@ -228,7 +228,7 @@ while true; do
                     echo "=== Adding $JOBNAME_SUFFIX ==="
                     envsubst </template/joshua-agent.yaml.template >>/tmp/joshua-agent.yaml
                     # add a separator
-                    echo "---" >>/tmp/joshua-agent.yaml
+                    printf '\n---\n' >>/tmp/joshua-agent.yaml
                     ((idx++))
                     ((i++))
                     if [ "${idx}" -ge ${new_jobs} ]; then
