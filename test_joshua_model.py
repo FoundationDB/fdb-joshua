@@ -15,6 +15,7 @@ import tempfile
 import threading
 import threading
 import time
+import hashlib
 import boto3
 from moto import mock_s3
 
@@ -167,6 +168,15 @@ def test_create_ensemble():
     ensemble_id = joshua_model.create_ensemble("joshua", {}, io.BytesIO())
     assert len(joshua_model.list_active_ensembles()) > 0
 
+
+def test_remote_tarball_url_detection():
+    assert joshua_model.is_remote_tarball_url("s3://bucket/path/to/tarball.tar.gz")
+    assert joshua_model.is_remote_tarball_url(
+        "https://account.blob.core.windows.net/container/tarball.tar.gz?sig=abc"
+    )
+    assert not joshua_model.is_remote_tarball_url("/tmp/tarball.tar.gz")
+
+
 def test_validate_ensemble(tmp_path, empty_ensemble):
     outfile = str(tmp_path) + "/" + "outfile"
     assert len(joshua_model.list_active_ensembles()) == 0
@@ -219,6 +229,58 @@ def test_validate_ensemble_s3(tmp_path, empty_ensemble):
     assert newhash
     print(newhash)
     assert orighash == newhash
+
+
+def test_validate_ensemble_azure_blob(monkeypatch, tmp_path, empty_ensemble):
+    azure_blob_url = (
+        "https://testaccount.blob.core.windows.net/test-container/tests/ensemble.tar.gz"
+    )
+    outfile = str(tmp_path) + "/" + "outfile"
+
+    with open(empty_ensemble, "rb") as fin:
+        contents = fin.read()
+        fin.seek(0)
+        orighash = joshua_model.get_hash(fin)
+        assert orighash
+
+    class FakeContentSettings:
+        content_md5 = hashlib.md5(contents).digest()
+
+    class FakeBlobProperties:
+        content_settings = FakeContentSettings()
+        etag = '"unused-etag"'
+
+    class FakeDownload:
+        def readall(self):
+            return contents
+
+    class FakeBlobClient:
+        def get_blob_properties(self):
+            return FakeBlobProperties()
+
+        def download_blob(self):
+            return FakeDownload()
+
+    monkeypatch.setattr(
+        joshua_model, "_get_azure_blob_client", lambda blob_url: FakeBlobClient()
+    )
+
+    assert len(joshua_model.list_active_ensembles()) == 0
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {}, azure_blob_url, False, True
+    )
+    assert len(joshua_model.list_active_ensembles()) > 0
+
+    with open(outfile, "wb") as fout:
+        joshua_model.get_ensemble_data(ensemble_id=ensemble_id, outfile=fout)
+    with open(outfile, "rb") as fout:
+        newhash = joshua_model.get_hash(fout)
+    assert newhash
+    assert orighash == newhash
+    assert (
+        joshua_model.get_ensemble_properties(ensemble_id)["azure_blob_url"]
+        == azure_blob_url
+    )
 
 def test_agent(tmp_path, empty_ensemble):
     """

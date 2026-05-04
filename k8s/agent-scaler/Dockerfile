@@ -40,7 +40,8 @@ ENV LD_LIBRARY_PATH="/lib64:$LD_LIBRARY_PATH"
 # FDB python binding
 RUN pip3 install \
         foundationdb==7.1.57 \
-        boto3
+        boto3 \
+        azure-storage-blob
 
 ENV BATCH_SIZE=1
 ENV MAX_JOBS=10
