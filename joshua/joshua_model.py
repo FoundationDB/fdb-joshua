@@ -461,8 +461,8 @@ def _get_remote_tarball_hash(tarball, properties):
     raise ValueError("Unsupported remote tarball URL: " + tarball)
 
 
-def create_ensemble(userid, properties, tarball, sanity=False, use_s3=False):
-    if use_s3:
+def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+    if use_remote:
         hash = _get_remote_tarball_hash(tarball, properties)
     else:
         hash = get_hash(tarball)
