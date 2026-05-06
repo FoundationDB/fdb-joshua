@@ -13,7 +13,6 @@ import subprocess
 import tarfile
 import tempfile
 import threading
-import threading
 import time
 import boto3
 from moto import mock_s3

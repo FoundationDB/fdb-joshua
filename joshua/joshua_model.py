@@ -570,7 +570,7 @@ def _delete_ensemble_data(tr, ensemble_id, sanity=False):
         return
 
     # Remove results stored using BlobVersion = 2.
-    del db[dir_ensemble_results_large[ensemble_id].range()]
+    del tr[dir_ensemble_results_large[ensemble_id].range()]
 
     # Delete the results.
     del tr[dir_ensemble_results_pass[ensemble_id].range()]

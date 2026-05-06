@@ -1,8 +1,10 @@
 FROM rockylinux/rockylinux:9.6
-# this is joshua-agent
+# This is joshua-agent
 
 WORKDIR /tmp
 
+# Currently Python 3.13 is used as the default python version 3.9 is EOL:
+# https://devguide.python.org/versions
 RUN dnf update -y && \
     dnf install -y \
         epel-release \
@@ -17,21 +19,22 @@ RUN dnf update -y && \
         java-11-openjdk-devel \
         mono-core \
         net-tools \
-        python3 \
-        python3-devel \
-        python3-pip \
+        python3.13 \
+        python3.13-devel \
+        python3.13-pip \
         ruby \
         ruby-devel \
         libffi-devel \
         libatomic \
         valgrind && \
-    pip3 install \
+    # This should be moved into a dedicated step with a requirements file + version pinning.
+    python3.13 -m pip install \
         python-dateutil \
         subprocess32 \
         psutil \
         kubernetes \
         urllib3==1.26.14 \
-        boto3 && \
+        boto3==1.43.4 && \
     gem install ffi --platform=ruby && \
     groupadd -r joshua -g 4060 && \
     useradd \
@@ -49,7 +52,7 @@ RUN dnf update -y && \
 COPY childsubreaper/ /opt/joshua/install/childsubreaper
 COPY joshua/ /opt/joshua/install/joshua
 COPY setup.py /opt/joshua/install/
-RUN ARTIFACT=client pip3 install /opt/joshua/install && \
+RUN ARTIFACT=client python3.13 -m pip install /opt/joshua/install && \
     rm -rf /opt/joshua/install
 
 # install old fdbserver binaries and libfdb_c.so
@@ -109,7 +112,7 @@ ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=300
 
 USER joshua
-CMD python3 -m joshua.joshua_agent \
+CMD python3.13 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \
         --work_dir /var/joshua \
         --agent-idle-timeout ${AGENT_TIMEOUT}
