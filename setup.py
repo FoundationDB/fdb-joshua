@@ -56,7 +56,6 @@ for module in modules:
         author_email="fdbteam@apple.com",
         url="https://www.foundationdb.org",
         description=module.desc,
-        long_description="How about a nice game of chess?",
         packages=["joshua"],
         package_data={"joshua": ["joshua/*.py"]},
         install_requires=module.requirements,
@@ -65,12 +64,12 @@ for module in modules:
         classifiers=[
             "Development Status :: 5 - Production/Stable",
             "Intended Audience :: Developers",
-            "License :: OSI Approved :: MIT License",
+            "License :: Apache-2.0 license",
         ]
         + module.platforms
         + [
             "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.13",
             "Programming Language :: Python :: Implementation :: CPython",
         ],
     )

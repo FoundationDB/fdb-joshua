@@ -237,8 +237,6 @@ def ensure_state(ensemble_id, where, properties, basepath=None):
         joshua_model.get_ensemble_data(ensemble_id, temp_file)
         temp_file.seek(0)
         tarf = tarfile.open(fileobj=temp_file)
-
-        members = tarf.getmembers()
         tarf.extractall(
             path=tmpdir,
             members=[m for m in tarf.getmembers() if check_archive_path(m.name)],

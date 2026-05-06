@@ -181,7 +181,7 @@ def kill_all_children(pid=str(os.getpid())):
     # FIXME: This may actually be unnecessary.
     time.sleep(1)
 
-    stragglers = len(filter(check_alive, child_pids))
+    stragglers = len(list(filter(check_alive, child_pids)))
 
     if stragglers > 0:
         # Could not kill everything. Raise an error to force restart.
@@ -190,7 +190,7 @@ def kill_all_children(pid=str(os.getpid())):
     # As a final check, retrieve all child PIDs. If there's anything
     # here, it means that there are still some processes were started
     # up after we identified those that were to be killed.
-    new_child_pids = len(retrieve_children(pid))
+    new_child_pids = len(list(retrieve_children(pid)))
     if new_child_pids > 0:
         raise OSError("New processes were begun after children were identified.")
 
@@ -241,15 +241,15 @@ class TestProcessHandling(unittest.TestCase):
         self.assertEqual(os.getpid(), int(env[VAR_NAME]))
 
     def test_get_all_pids(self):
-        if sys.platform != "linux2":
+        if sys.platform not in ["linux2", "linux"]:
             self.fail("This platform is not supported.")
         else:
             pids = get_all_process_pids()
-            self.assertTrue(len(pids) > 0)  # More than 1 running process.
+            self.assertGreater(len(list(pids)), 0)  # More than 1 running process.
 
             # Each should be a number.
             try:
-                pid_nums = map(int, pids)
+                _ = map(int, pids)
             except ValueError:
                 self.fail("Does not return only integers.")
 
@@ -259,10 +259,10 @@ class TestProcessHandling(unittest.TestCase):
 
             # This should contain a number of processes, but this one is a
             # good starting point to check.
-            self.assertTrue(str(os.getpid()) in pids)
+            self.assertIn(str(os.getpid()), pids)
 
     def test_get_environment(self):
-        if sys.platform != "linux2":
+        if sys.platform not in ["linux2", "linux"]:
             self.fail("This platform is not supported")
         else:
             # Make sure the environment for this process is the same
@@ -273,7 +273,7 @@ class TestProcessHandling(unittest.TestCase):
             self.assertEqual(env, os.environ)
 
     def test_retrieve_children(self):
-        if sys.platform != "linux2":
+        if sys.platform not in ["linux2", "linux"]:
             self.fail("This platform is not supported")
         else:
             env = mark_environment(os.environ)
@@ -288,7 +288,7 @@ class TestProcessHandling(unittest.TestCase):
             self.assertEqual(len(pids), 10)
 
     def test_kill_all_children(self):
-        if sys.platform != "linux2":
+        if sys.platform not in ["linux2", "linux"]:
             self.fail("This platform is not supported")
         else:
             env = mark_environment(os.environ)
