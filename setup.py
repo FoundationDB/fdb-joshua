@@ -64,7 +64,7 @@ for module in modules:
         classifiers=[
             "Development Status :: 5 - Production/Stable",
             "Intended Audience :: Developers",
-            "License :: Apache-2.0 license",
+            "License :: OSI Approved :: Apache-2.0 license",
         ]
         + module.platforms
         + [
