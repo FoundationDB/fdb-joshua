@@ -1,6 +1,8 @@
 FROM rockylinux/rockylinux:9.6
 ARG AGENT_TAG=joshua-agent:latest
 
+# Currently Python 3.13 is used as the default python version 3.9 is EOL:
+# https://devguide.python.org/versions
 RUN dnf -y update && \
     dnf install -y \
         epel-release \
@@ -10,7 +12,9 @@ RUN dnf -y update && \
         gettext \
         procps-ng \
         jq-1.6 \
-        python3-pip && \
+        python3.13 \
+        python3.13-pip && \
+    ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
     dnf -y clean all --enablerepo='*' && \
     case $(uname -m) in \
             x86_64) curl -Ls https://dl.k8s.io/release/v1.27.5/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl;; \
@@ -38,8 +42,9 @@ RUN curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSI
 ENV LD_LIBRARY_PATH="/lib64:$LD_LIBRARY_PATH"
 
 # FDB python binding
-RUN pip3 install \
-        foundationdb==7.1.57 \
+# TODO: This should be in a requirements file with version pinning.
+RUN python3.13 -m pip install \
+        foundationdb==${FDB_VERSION} \
         boto3
 
 ENV BATCH_SIZE=1
