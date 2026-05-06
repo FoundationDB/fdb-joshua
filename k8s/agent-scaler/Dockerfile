@@ -14,6 +14,7 @@ RUN dnf -y update && \
         jq-1.6 \
         python3.13 \
         python3.13-pip && \
+    ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
     dnf -y clean all --enablerepo='*' && \
     case $(uname -m) in \
             x86_64) curl -Ls https://dl.k8s.io/release/v1.27.5/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl;; \
