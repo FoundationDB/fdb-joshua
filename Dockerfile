@@ -27,6 +27,8 @@ RUN dnf update -y && \
         libffi-devel \
         libatomic \
         valgrind && \
+    ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
+    ln -sf /usr/bin/pip3.13 /usr/bin/pip3 && \
     # This should be moved into a dedicated step with a requirements file + version pinning.
     python3.13 -m pip install \
         python-dateutil \
