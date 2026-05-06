@@ -59,6 +59,21 @@ jobs_fail = 0
 stop_agent = False
 
 
+def get_heartbeat_interval():
+    interval = os.environ.get("JOSHUA_AGENT_HEARTBEAT_INTERVAL", "1.0")
+    try:
+        interval = float(interval)
+    except ValueError:
+        raise JoshuaError(
+            "JOSHUA_AGENT_HEARTBEAT_INTERVAL must be a positive number of seconds"
+        )
+    if interval <= 0.0:
+        raise JoshuaError(
+            "JOSHUA_AGENT_HEARTBEAT_INTERVAL must be a positive number of seconds"
+        )
+    return interval
+
+
 # This is thrown by Joshua to indicate that there was an error.
 class JoshuaError(Exception):
     def __init__(self, msg):
@@ -222,8 +237,6 @@ def ensure_state(ensemble_id, where, properties, basepath=None):
         joshua_model.get_ensemble_data(ensemble_id, temp_file)
         temp_file.seek(0)
         tarf = tarfile.open(fileobj=temp_file)
-
-        members = tarf.getmembers()
         tarf.extractall(
             path=tmpdir,
             members=[m for m in tarf.getmembers() if check_archive_path(m.name)],
@@ -700,8 +713,9 @@ class AsyncEnsemble:
         asyncDoneArgs = (done_args, where, env)
         doneChild = threading.Thread(target=asyncDone.run, args=asyncDoneArgs)
         doneChild.start()
+        heartbeat_interval = get_heartbeat_interval()
         while doneChild.is_alive():
-            doneChild.join(1.0)
+            doneChild.join(heartbeat_interval)
             if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
                 asyncDone.cancel()
 
@@ -776,8 +790,9 @@ def run_ensemble(
     )
     asyncEnsembleThread.setDaemon(True)
     asyncEnsembleThread.start()
+    heartbeat_interval = get_heartbeat_interval()
     while True:
-        asyncEnsembleThread.join(timeout=1)  # heartbeating frequency
+        asyncEnsembleThread.join(timeout=heartbeat_interval)
         if asyncEnsembleThread.is_alive():
             if not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
                 asyncEnsemble.cancel()

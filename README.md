@@ -11,6 +11,8 @@ architecture is essentially as follows:
  * The Joshua agent should be run in the various machines where one would like
    jobs to be executed. It will look for jobs to run (called ensembles) by looking 
    for updates from a coordinating FoundationDB cluster.
+   Set `JOSHUA_AGENT_HEARTBEAT_INTERVAL` to override the interval, in seconds,
+   between heartbeats for a running job. The default is `1.0`.
 
  * Jobs should be submitted through a Joshua client that pushes a package to
    run as well as adding an ensemble name into the same coordinating database.

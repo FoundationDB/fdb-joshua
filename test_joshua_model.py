@@ -13,7 +13,6 @@ import subprocess
 import tarfile
 import tempfile
 import threading
-import threading
 import time
 import hashlib
 import boto3
