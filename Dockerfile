@@ -34,7 +34,7 @@ RUN dnf update -y && \
         psutil \
         kubernetes \
         urllib3==1.26.14 \
-        boto3 && \
+        boto3==1.43.4 && \
     gem install ffi --platform=ruby && \
     groupadd -r joshua -g 4060 && \
     useradd \
