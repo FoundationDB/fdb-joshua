@@ -56,9 +56,16 @@ if [ -z "$SCALER_POD" ]; then
 fi
 
 # Copy joshua.py with patched imports (remove lxml dependency, fix relative imports for pod environment)
+TEMP_J=$(mktemp)
 sed -e 's/import lxml.etree as le/le = None/' \
     -e 's/from \. import joshua_model/import joshua_model/' \
-    "$JOSHUA_PY" | \
-    kubectl --context "$CONTEXT" exec -i "$SCALER_POD" -- tee /tmp/joshua.py > /dev/null
+    "$JOSHUA_PY" >"$TEMP_J"
 
-kubectl --context "$CONTEXT" exec -it "$SCALER_POD" -- env PYTHONPATH=/tools python3 /tmp/joshua.py -C /etc/foundationdb/fdb.cluster "$@"
+# write it and run it in one remote-exec
+kubectl --context "$CONTEXT" exec -i "$SCALER_POD" -- /bin/sh -c \
+    'J=$(mktemp /tmp/joshua.XXXXXX.py) && cat >$J && PYTHONPATH=/tools python3 $J -C /etc/foundationdb/fdb.cluster "$@"' -- "$@" \
+    <"$TEMP_J"
+
+STATUS=$?
+rm "$TEMP_J"
+exit $STATUS
