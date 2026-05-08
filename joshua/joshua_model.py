@@ -39,6 +39,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from urllib.parse import urlparse
 
 import fdb
 import fdb.tuple
@@ -414,19 +415,55 @@ def _create_ensemble(tr, ensemble_id, properties, sanity=False):
     tr.add(changes, ONE)
 
 
-def create_ensemble(userid, properties, tarball, sanity=False, use_s3=False):
-    if use_s3:
+def _is_s3_url(tarball):
+    return tarball.startswith("s3://")
+
+
+def _is_azure_blob_url(tarball):
+    parsed = urlparse(tarball)
+    return parsed.scheme in ("http", "https") and parsed.netloc.endswith(
+        ".blob.core.windows.net"
+    )
+
+
+def is_remote_tarball_url(tarball):
+    return _is_s3_url(tarball) or _is_azure_blob_url(tarball)
+
+
+def _get_azure_blob_client(blob_url):
+    from azure.storage.blob import BlobClient
+
+    return BlobClient.from_blob_url(blob_url)
+
+
+def _get_remote_tarball_hash(tarball, properties):
+    if _is_s3_url(tarball):
         # If S3, get the hash from ETag (md5)
         # e.g.
         # $ aws s3api head-object --bucket mybucket --key path/to/tarball --query ETag --output text
         # "a7470bf1a0536f4fe8432c4392281027-7"
-        client = boto3.client('s3')
+        client = boto3.client("s3")
         response = client.head_object(
-            Bucket=tarball.split('/')[2],
-            Key='/'.join(tarball.split('/')[3:])
+            Bucket=tarball.split("/")[2], Key="/".join(tarball.split("/")[3:])
         )
-        hash = response['ETag'].replace('"', '')[:16]
         properties["s3url"] = tarball
+        return response["ETag"].replace('"', "")[:16]
+
+    if _is_azure_blob_url(tarball):
+        blob_client = _get_azure_blob_client(tarball)
+        blob_properties = blob_client.get_blob_properties()
+        properties["azure_blob_url"] = tarball
+        content_md5 = blob_properties.content_settings.content_md5
+        if content_md5:
+            return content_md5.hex()[:16]
+        return blob_properties.etag.replace('"', "")[:16]
+
+    raise ValueError("Unsupported remote tarball URL: " + tarball)
+
+
+def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+    if use_remote:
+        hash = _get_remote_tarball_hash(tarball, properties)
     else:
         hash = get_hash(tarball)
     timestamp = format_datetime(datetime.datetime.now(datetime.timezone.utc))
@@ -436,7 +473,7 @@ def create_ensemble(userid, properties, tarball, sanity=False, use_s3=False):
     ensemble_id = timestamp + "-" + userid[:27] + "-" + hash[:16]
     if "submitted" not in properties:
         properties["submitted"] = timestamp
-    if not use_s3:
+    if not use_remote:
         _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
     _create_ensemble(db, ensemble_id, properties, sanity)
     logger.debug(
@@ -581,7 +618,7 @@ def _delete_ensemble_data(tr, ensemble_id, sanity=False):
         del tr[dir[ensemble_id]]
 
     properties = get_ensemble_properties(ensemble_id)
-    if "s3url" not in properties:
+    if "s3url" not in properties and "azure_blob_url" not in properties:
         # Delete the record that this ensemble exists.
         _delete_blob(tr, dir_ensemble_data[ensemble_id])
     del tr[dir_all_ensembles[ensemble_id].range()]
@@ -605,7 +642,7 @@ def delete_ensemble(ensemble_id, compressed=True, sanity=False):
 def get_ensemble_data(ensemble_id, outfile=None):
     if not outfile:
         outfile = BytesIO()
-    # Check if tarball is stored as a blob or passed through S3
+    # Check if tarball is stored as a blob or passed through remote object storage
     properties = get_ensemble_properties(ensemble_id)
     if "s3url" in properties:
         # Retrieve tarball from S3
@@ -616,6 +653,9 @@ def get_ensemble_data(ensemble_id, outfile=None):
             Key='/'.join(tarball.split('/')[3:])
         )
         outfile.write(response['Body'].read())
+    elif "azure_blob_url" in properties:
+        blob_client = _get_azure_blob_client(properties["azure_blob_url"])
+        outfile.write(blob_client.download_blob().readall())
     else:
         _read_blob(db, dir_ensemble_data[ensemble_id], outfile)
     return outfile

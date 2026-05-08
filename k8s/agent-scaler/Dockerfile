@@ -45,7 +45,8 @@ ENV LD_LIBRARY_PATH="/lib64:$LD_LIBRARY_PATH"
 # TODO: This should be in a requirements file with version pinning.
 RUN python3.13 -m pip install \
         foundationdb==${FDB_VERSION} \
-        boto3
+        boto3 \
+        azure-storage-blob
 
 ENV BATCH_SIZE=1
 ENV MAX_JOBS=10
