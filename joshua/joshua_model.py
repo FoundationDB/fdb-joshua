@@ -473,7 +473,7 @@ def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False)
     ensemble_id = timestamp + "-" + userid[:27] + "-" + hash[:16]
     if "submitted" not in properties:
         properties["submitted"] = timestamp
-    if not use_s3:
+    if not use_remote:
         _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
     _create_ensemble(db, ensemble_id, properties, sanity)
     logger.debug(
