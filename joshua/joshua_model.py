@@ -96,6 +96,13 @@ def open(c_file=None, dir_path=("joshua",)):
 
     cluster_file = c_file
     db = fdb.open(cluster_file)
+    # Timeout applies to all transactions. This should prevent FDB to hang forever.
+    transaction_timeout = int(os.environ.get("TRANSACTION_TIMEOUT_MS", "10000"))
+    # Retry limit applies to all transactions. This should prevent FDB to hang forever.
+    transaction_retry_limit = int(os.environ.get("TRANSACTION_RETRY_LIMIT", "5"))
+    logger.info(f"transaction_timeout: {transaction_timeout} and transaction_retry_limit: {transaction_retry_limit}")
+    db.options.set_transaction_timeout(transaction_timeout)
+    db.options.set_transaction_retry_limit(transaction_retry_limit)
     dir_top = create_or_open_top_path(db, dir_path)
     dir_ensembles = dir_top.create_or_open(db, "ensembles")
     dir_active = dir_ensembles.create_or_open(db, "active")
