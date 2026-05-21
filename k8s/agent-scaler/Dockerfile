@@ -1,24 +1,29 @@
-FROM rockylinux/rockylinux:9.6
+FROM rockylinux/rockylinux:9.7
 ARG AGENT_TAG=joshua-agent:latest
 
 # Currently Python 3.13 is used as the default python version 3.9 is EOL:
 # https://devguide.python.org/versions
+# gettext is for 'envsubst'
 RUN dnf -y update && \
     dnf install -y \
         epel-release \
         scl-utils \
         yum-utils && \
     dnf -y install \
-        gettext \
+        lsof \
         procps-ng \
+        gettext \
         jq-1.6 \
         python3.13 \
         python3.13-pip && \
-    ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
-    dnf -y clean all --enablerepo='*' && \
-    case $(uname -m) in \
-            x86_64) curl -Ls https://dl.k8s.io/release/v1.27.5/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl;; \
-            aarch64) curl -Ls https://dl.k8s.io/release/v1.27.5/bin/linux/arm64/kubectl -o /usr/local/bin/kubectl;; \
+    dnf -y clean all --enablerepo='*'
+
+RUN ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
+    ln -sf /usr/bin/pip3.13 /usr/bin/pip3
+
+RUN case $(uname -m) in \
+            x86_64) curl -Ls https://dl.k8s.io/release/v1.30.14/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl;; \
+            aarch64) curl -Ls https://dl.k8s.io/release/v1.30.14/bin/linux/arm64/kubectl -o /usr/local/bin/kubectl;; \
             *) echo "unsupported architecture for kubectl"; exit 1 ;; \
     esac; \
     chmod +x /usr/local/bin/kubectl
@@ -43,9 +48,9 @@ ENV LD_LIBRARY_PATH="/lib64:$LD_LIBRARY_PATH"
 
 # FDB python binding
 # TODO: This should be in a requirements file with version pinning.
-RUN python3.13 -m pip install \
+RUN python3 -m pip install \
         foundationdb==${FDB_VERSION} \
-        boto3
+        boto3==1.43.14
 
 ENV BATCH_SIZE=1
 ENV MAX_JOBS=10
