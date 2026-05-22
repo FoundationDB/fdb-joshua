@@ -38,8 +38,8 @@ if [ -z "$CONTEXT" ]; then
     exit 1
 fi
 
-JOSHUA_PY=$(find ${JOSHUA_CHECKOUT} -name "joshua.py" -print)
-if [ -z "$JOSHUA_PY" ]; then
+JOSHUA_PY=${JOSHUA_CHECKOUT}/joshua/joshua.py
+if [ ! -e "$JOSHUA_PY" ]; then
     echo "Error: Could not find joshua.py in ${JOSHUA_CHECKOUT}"
     exit 1
 fi
