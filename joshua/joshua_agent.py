@@ -20,6 +20,7 @@
 
 import argparse
 import errno
+import logging
 import os
 import queue
 import random
@@ -151,11 +152,8 @@ def trim_jobqueue(cutoff_date, remove_jobs=True):
 def log(outputText, newline=True):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     message = f"[{timestamp}] {outputText}"
-    return (
-        print(message, file=getFileHandle())
-        if newline
-        else getFileHandle().write(message)
-    )
+    end = '\n' if newline else ''
+    print(message, file=getFileHandle(), end=end, flush=True)
 
 
 def agent_init(work_dir):
@@ -1151,6 +1149,9 @@ if __name__ == "__main__":
     else:
         agent_timeout = None
         log("No agent timeout configured - agent will run indefinitely")
+
+    # joshua_model uses logging
+    logging.basicConfig(level=logging.INFO, format="[%(asctime)s)] (%(levelname).3s) %(message)s")
 
     joshua_model.open(arguments.cluster_file, arguments.dir_path)
     agent_init(arguments.work_dir)
