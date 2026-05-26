@@ -61,6 +61,11 @@ RUN if [ "$(uname -p)" == "x86_64" ]; then \
 ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=300
 
+# joshua-agent often needs huge retry limits
+# because of thundering-herd of thousands of agents doing joshua_model.try_running_test()
+ENV TRANSACTION_TIMEOUT_MS=256000
+ENV TRANSACTION_RETRY_LIMIT=1000
+
 USER joshua
 CMD python3 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \

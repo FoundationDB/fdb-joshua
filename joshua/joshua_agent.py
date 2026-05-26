@@ -33,7 +33,6 @@ import threading
 import time
 import traceback
 import datetime
-from pprint import pprint
 
 # this is used to read / patch Pod labels
 from kubernetes import client, config
