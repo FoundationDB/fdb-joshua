@@ -29,7 +29,7 @@ RUN python3 -m pip install \
         python-dateutil \
         subprocess32 \
         psutil \
-        kubernetes \
+        kubernetes==30.1.0 \
         urllib3==1.26.20 \
         boto3==1.43.14
 
