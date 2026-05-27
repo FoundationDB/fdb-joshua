@@ -42,11 +42,14 @@ if "ARTIFACT" in os.environ:
     elif os.environ["ARTIFACT"] == "server":
         modules = [all_modules[1]]
     elif os.environ["ARTIFACT"] == "all":
+        # Does not work for modern python3/pip:
+        # > AssertionError: Exactly one .egg-info should have been produced, but found 2
         modules = all_modules
     else:
         raise ValueError(f"Unknown artifact: {os.environ['ARTIFACT']}")
 else:
-    modules = all_modules
+    # default to client (modern python3/pip only allow one)
+    modules = all_modules[0]
 
 for module in modules:
     setup(
