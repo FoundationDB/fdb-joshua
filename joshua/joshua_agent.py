@@ -195,15 +195,6 @@ def ensemble_dir(ensemble_id=None, basepath=None):
     )
 
 
-def check_archive_path(name):
-    path = os.path.normpath(name)
-    if path.startswith("/"):
-        return False
-    if path.startswith(".."):
-        return False
-    return True
-
-
 def ensure_state_test_delay():
     """
     In testing this can be overriden to introduce a delay to simulate a large
@@ -236,8 +227,8 @@ def ensure_state(ensemble_id, where, properties, basepath=None):
         tarf = tarfile.open(fileobj=temp_file)
         tarf.extractall(
             path=tmpdir,
-            members=[m for m in tarf.getmembers() if check_archive_path(m.name)],
-        )
+            filter=tarfile.tar_filter,
+        )  # tar_filter refuses absolute paths, and relative paths that go outside target path
 
     os.symlink(
         os.path.join(basepath, "global_data"), os.path.join(tmpdir, "global_data")
