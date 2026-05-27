@@ -33,12 +33,12 @@ import threading
 import time
 import traceback
 import datetime
+import subprocess
 
 # this is used to read / patch Pod labels
 from kubernetes import client, config
-
-import subprocess32 as subprocess
 import fdb
+
 from . import joshua_model
 from . import process_handling
 
@@ -785,7 +785,7 @@ def run_ensemble(
             "timeout_command_timeout": timeout_command_timeout,
         },
     )
-    asyncEnsembleThread.setDaemon(True)
+    asyncEnsembleThread.daemon = True
     asyncEnsembleThread.start()
     heartbeat_interval = get_heartbeat_interval()
     while True:

@@ -27,7 +27,6 @@ RUN ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
 # This should be moved into a dedicated step with a requirements file + version pinning.
 RUN python3 -m pip install \
         python-dateutil \
-        subprocess32 \
         psutil \
         kubernetes==30.1.0 \
         urllib3==1.26.20 \
