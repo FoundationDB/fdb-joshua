@@ -39,8 +39,8 @@ from kubernetes import client, config
 
 import subprocess32 as subprocess
 import fdb
-import joshua_model
-import process_handling
+from . import joshua_model
+from . import process_handling
 
 try:
     import childsubreaper
