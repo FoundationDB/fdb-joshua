@@ -29,7 +29,7 @@ data:
             imagePullPolicy: IfNotPresent
             env:
             - name: AGENT_TIMEOUT
-              value: "60"
+              value: "1800"
             volumeMounts:
               - mountPath: /etc/foundationdb
                 readOnly: true
