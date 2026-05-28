@@ -24,6 +24,7 @@ import datetime
 import json
 import os
 import pwd
+import re
 import sys
 import threading
 import time
@@ -39,11 +40,12 @@ def get_username():
     return os.environ.get(JOSHUA_USER_ENV, pwd.getpwuid(os.getuid())[0])
 
 
+def str_esc(v):
+    return re.sub(r"[\s=]", "_", str(v))
+
+
 def format_ensemble(e, props):
-    return "  %-50s %s" % (
-        e,
-        " ".join(f"{k}={v}" for k, v in sorted(props.items())),
-    )
+    return f"  {e:50}" + " ".join(f"{k}={str_esc(v)}" for k, v in sorted(props.items()))
 
 
 def timestamp_of(time_string):
@@ -83,11 +85,7 @@ def list_active_ensembles(
         if show_in_progress:
             print("\tCurrently active tests:")
             for props in joshua_model.show_in_progress(e):
-                print(
-                    "\t{}".format(
-                        " ".join(f"{k}={v}" for k, v in sorted(props.items()))
-                    )
-                )
+                print("\t" + " ".join(f"{k}={v}" for k, v in sorted(props.items())))
 
     return ensemble_list
 
