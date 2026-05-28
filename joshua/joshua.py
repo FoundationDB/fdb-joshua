@@ -21,6 +21,7 @@
 
 import argparse
 import datetime
+import json
 import os
 import pwd
 import sys
@@ -59,9 +60,18 @@ def get_active_ensembles(stopped, sanity=False, username=None):
 
 
 def list_active_ensembles(
-    stopped, sanity=False, username=None, show_in_progress=None, **args
+    stopped, sanity=False, username=None, show_in_progress=False, **args
 ):
     ensemble_list = get_active_ensembles(stopped, sanity, username)
+
+    if args["json"]:
+        for e, props in ensemble_list:
+            o = {"id": e, **props}
+            if show_in_progress:
+                o["in_progress"] = joshua_model.show_in_progress(e)
+            print(json.dumps(o))
+        return ensemble_list
+
     if stopped:
         print("All ensembles:")
     elif sanity:
@@ -452,7 +462,9 @@ if __name__ == "__main__":
         "--show-in-progress",
         action="store_true",
         help="If set, show the progress of currently running tests",
-        default=None,
+    )
+    parser_list.add_argument(
+        "--json", action="store_true", help="output in json lines"
     )
     parser_list.set_defaults(cmd=list_active_ensembles)
 
