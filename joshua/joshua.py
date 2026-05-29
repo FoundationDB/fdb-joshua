@@ -133,7 +133,8 @@ def start_ensemble(
 
     if command:
         properties["test_command"] = command
-    print("Starting ensemble")
+
+    print("Starting ensemble", flush=True)
     # if s3 URL is passed, passthrough the URL
     if tarball.startswith("s3://"):
         ensemble_id = joshua_model.create_ensemble(
@@ -145,10 +146,10 @@ def start_ensemble(
             size = tarfile.tell()
             tarfile.seek(0, os.SEEK_SET)
             properties["data_size"] = size
-
             ensemble_id = joshua_model.create_ensemble(
                 username, properties, tarfile, sanity, False
             )
+
     print(format_ensemble(ensemble_id, properties))
     return str(ensemble_id)
 
@@ -156,7 +157,7 @@ def start_ensemble(
 def stop_ensemble(ensemble=None, username=None, sanity=False, printable=True, **args):
     if ensemble:
         if printable:
-            print("Stopping ensemble", ensemble)
+            print("Stopping ensemble", ensemble, flush=True)
         joshua_model.stop_ensemble(ensemble, sanity)
     else:
         # Stop all active ensembles for the given username
@@ -174,7 +175,7 @@ def stop_ensemble(ensemble=None, username=None, sanity=False, printable=True, **
         for e, props in ensemble_list:
             if "-" + username + "-" in str(e):
                 if printable:
-                    print("Stopping ensemble", e)
+                    print("Stopping ensemble", e, flush=True)
                 joshua_model.stop_ensemble(e, sanity)
 
 
@@ -327,7 +328,7 @@ def _delete_helper(to_delete, yes=False, dryrun=False, sanity=False):
                 joshua_model.delete_ensemble(
                     ensemble, compressed=compressed, sanity=ensemble_sanity
                 )
-                print("Ensemble", ensemble, "deleted")
+                print("Ensemble", ensemble, "deleted", flush=True)
             else:
                 print("Ensemble", ensemble, "not deleted (dry-run).")
         else:
@@ -417,7 +418,7 @@ def download_ensemble(ensemble, out=None, force=False, sanity=False, **args):
     if ensemble_dir:
         os.mkdir(ensemble_dir)
 
-    print(f"Downloading ensemble {ensemble} into {out_file}...")
+    print(f"Downloading ensemble {ensemble} into {out_file}...", flush=True)
     with open(out_file, "wb") as fout:
         joshua_model.get_ensemble_data(ensemble_id=ensemble, outfile=fout)
     print("Download completed")
