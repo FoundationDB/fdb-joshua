@@ -292,6 +292,24 @@ def list_active_ensembles(tr) -> list[tuple[str, dict]]:
     return _list_ensembles(tr, dir_active)
 
 
+def stop_completed_ensembles():
+    """Stop any active ensembles where ended >= max_runs.
+
+    This is a sweep to catch ensembles that weren't stopped by
+    _insert_results due to the snapshot read race: when many agents
+    finish concurrently, all read a stale ended count and none triggers
+    _stop_ensemble.
+    """
+    stopped = []
+    for ensemble_id, props in list_active_ensembles():
+        max_runs = int(props.get("max_runs", 0))
+        ended = int(props.get("ended", 0))
+        if max_runs > 0 and ended >= max_runs:
+            stop_ensemble(ensemble_id)
+            stopped.append(ensemble_id)
+    return stopped
+
+
 @transactional
 def list_sanity_ensembles(tr) -> list[tuple[str, dict]]:
     return _list_ensembles(tr, dir_sanity)

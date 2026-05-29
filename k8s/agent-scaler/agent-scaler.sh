@@ -146,6 +146,11 @@ while true; do
     # Clean up temp file
     rm -f /tmp/protected_failed_jobs_${AGENT_NAME}.txt
 
+    # Stop any ensembles that reached max_runs but weren't stopped due to
+    # the snapshot read race in _insert_results.
+    echo "$(date -Iseconds) Checking for stale completed ensembles ..."
+    python3 /tools/stop_completed_ensembles.py -C "${FDB_CLUSTER_FILE}"
+
     # Get the current ensembles
     # Pass the cluster file to the ensemble_count.py script
     if [ ! -f "${FDB_CLUSTER_FILE}" ]; then
