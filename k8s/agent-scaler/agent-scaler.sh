@@ -148,9 +148,8 @@ while true; do
 
     # Stop any ensembles that reached max_runs but weren't stopped due to
     # the snapshot read race in _insert_results.
-    python3 /tools/stop_completed_ensembles.py -C "${FDB_CLUSTER_FILE}" 2>&1 | while read -r line; do
-        echo "$(date -Iseconds) ${line}"
-    done
+    echo "$(date -Iseconds) Checking for stale completed ensembles ..."
+    python3 /tools/stop_completed_ensembles.py -C "${FDB_CLUSTER_FILE}"
 
     # Get the current ensembles
     # Pass the cluster file to the ensemble_count.py script
