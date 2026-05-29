@@ -32,11 +32,7 @@ RUN case $(uname -m) in \
 COPY agent-scaler.sh /tools/
 COPY ensemble_count.py /tools/
 COPY joshua_model.py /tools/
-
-RUN chmod +x \
-    /tools/agent-scaler.sh \
-    /tools/ensemble_count.py \
-    /tools/joshua_model.py
+COPY stop_completed_ensembles.py /tools/
 
 # libfdb_c.so
 ARG FDB_VERSION="7.1.57"
