@@ -605,7 +605,11 @@ class AsyncEnsemble:
                         # Still running after SIGTERM - force kill with SIGKILL
                         log("Process didn't terminate after SIGTERM - sending SIGKILL")
                         process.kill()
-                        remaining_out, remaining_err = process.communicate()
+                        try:
+                            remaining_out, remaining_err = process.communicate(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            log("Process didn't terminate after SIGKILL ?!")
+                            remaining_out = ""
 
                     # Combine partial output from timeout exception + remaining after terminate/kill
                     output = (timeout_ex.stdout or b"") + (remaining_out or b"")
