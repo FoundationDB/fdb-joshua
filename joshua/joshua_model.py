@@ -35,10 +35,7 @@ import zlib
 import boto3
 from collections import defaultdict
 from io import BytesIO
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import Dict, List, Optional, Tuple
 
 import fdb
 import fdb.tuple
@@ -231,7 +228,7 @@ def identify_existing_ensembles(tr, ensembles):
 
 
 @transactional
-def list_and_watch_active_ensembles(tr) -> tuple[list[str], fdb.Future]:
+def list_and_watch_active_ensembles(tr) -> Tuple[List[str], fdb.Future]:
     return _list_and_watch_ensembles(tr, dir_active, dir_active_changes)
 
 
@@ -265,7 +262,7 @@ def _unpack_property(ensemble, key, value, into):
         into[t[1]] = struct.unpack("<Q", value)[0]
 
 
-def _list_ensembles(tr, dir) -> list[tuple[str, dict]]:
+def _list_ensembles(tr, dir) -> List[Tuple[str, dict]]:
     prop_reads = []
     for k, v in tr[dir.range()]:
         (ensemble,) = dir.unpack(k)
@@ -288,7 +285,7 @@ def _list_ensembles(tr, dir) -> list[tuple[str, dict]]:
 
 
 @transactional
-def list_active_ensembles(tr) -> list[tuple[str, dict]]:
+def list_active_ensembles(tr) -> List[Tuple[str, dict]]:
     return _list_ensembles(tr, dir_active)
 
 
@@ -311,12 +308,12 @@ def stop_completed_ensembles():
 
 
 @transactional
-def list_sanity_ensembles(tr) -> list[tuple[str, dict]]:
+def list_sanity_ensembles(tr) -> List[Tuple[str, dict]]:
     return _list_ensembles(tr, dir_sanity)
 
 
-def list_all_ensembles() -> list[tuple[str, dict]]:
-    ensembles: list[tuple[str, dict]] = []
+def list_all_ensembles() -> List[Tuple[str, dict]]:
+    ensembles: List[Tuple[str, dict]] = []
     r = dir_all_ensembles.range()
     start = r.start
     tr = db.create_transaction()
@@ -483,7 +480,7 @@ def stop_user_ensembles(username, sanity=False):
 
 def get_active_ensembles(
     stopped, sanity=False, username=None
-) -> list[tuple[str, dict]]:
+) -> List[Tuple[str, dict]]:
     if stopped:
         ensemble_list = list_all_ensembles()
     elif sanity:
@@ -680,7 +677,7 @@ def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> in
 
 def _get_seeds_and_heartbeats(
     ensemble_id: str, tr: fdb.Transaction
-) -> list[tuple[int, float]]:
+) -> List[Tuple[int, float]]:
     result = []
     for k, v in tr.snapshot[dir_ensemble_incomplete[ensemble_id]["heartbeat"].range()]:
         (seed,) = dir_ensemble_incomplete[ensemble_id]["heartbeat"].unpack(k)
@@ -752,7 +749,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
 
 
 @transactional
-def show_in_progress(tr: fdb.Transaction, ensemble_id: str) -> list[tuple[int, dict]]:
+def show_in_progress(tr: fdb.Transaction, ensemble_id: str) -> List[Tuple[int, dict]]:
     """
     Returns a list of properties for in progress tests
     """
