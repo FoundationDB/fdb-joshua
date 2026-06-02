@@ -11,6 +11,7 @@ RUN dnf update -y && \
         dnf-plugins-core && \
     dnf config-manager --set-enabled crb && \
     dnf install -y \
+        xz \
         lsof \
         net-tools \
         procps-ng \
