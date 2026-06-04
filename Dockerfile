@@ -19,7 +19,8 @@ RUN dnf update -y && \
         python3.13-devel \
         python3.13-pip \
         libffi-devel \
-        gcc && \
+        gcc \
+        valgrind && \
     dnf -y clean all --enablerepo='*'
 
 RUN ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
