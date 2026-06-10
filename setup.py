@@ -49,7 +49,7 @@ if "ARTIFACT" in os.environ:
         raise ValueError(f"Unknown artifact: {os.environ['ARTIFACT']}")
 else:
     # default to client (modern python3/pip only allow one)
-    modules = all_modules[0]
+    modules = [all_modules[0]]
 
 for module in modules:
     setup(
