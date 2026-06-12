@@ -45,7 +45,7 @@ def str_esc(v):
 
 
 def format_ensemble(e, props):
-    return f"  {e:50}" + " ".join(f"{k}={str_esc(v)}" for k, v in sorted(props.items()))
+    return f"  {e:50} " + " ".join(f"{k}={str_esc(v)}" for k, v in sorted(props.items()))
 
 
 def timestamp_of(time_string):
