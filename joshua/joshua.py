@@ -135,8 +135,9 @@ def start_ensemble(
         properties["test_command"] = command
 
     print("Starting ensemble", flush=True)
-    # if s3 URL is passed, passthrough the URL
-    if tarball.startswith("s3://"):
+    # If a remote object storage URL is passed, store the URL instead of copying
+    # the tarball into FoundationDB.
+    if joshua_model.is_remote_tarball_url(tarball):
         ensemble_id = joshua_model.create_ensemble(
             username, properties, tarball, sanity, True
         )

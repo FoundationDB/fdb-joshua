@@ -61,6 +61,11 @@ commands):
 python3 -m joshua.joshua start --tarball path/to/archive.tar.gz
 ```
 
+`--tarball` can also point at a remote tarball in S3 (`s3://bucket/key`) or Azure
+Blob Storage (`https://account.blob.core.windows.net/container/blob`). Azure
+Blob URLs must be directly readable by the agent, for example by including a SAS
+token or pointing at a public blob.
+
 You can then see the results of the test by running:
 
 ```bash

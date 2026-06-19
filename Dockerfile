@@ -32,7 +32,8 @@ RUN python3 -m pip install \
         psutil \
         kubernetes==30.1.0 \
         urllib3==1.26.20 \
-        boto3==1.43.14
+        boto3==1.43.14 \
+        azure-storage-blob
 
 RUN groupadd -r joshua -g 4060 && \
     useradd \
