@@ -21,8 +21,10 @@
 
 import argparse
 import datetime
+import json
 import os
 import pwd
+import re
 import sys
 import threading
 import time
@@ -38,11 +40,12 @@ def get_username():
     return os.environ.get(JOSHUA_USER_ENV, pwd.getpwuid(os.getuid())[0])
 
 
+def str_esc(v):
+    return re.sub(r"[\s=]", "_", str(v))
+
+
 def format_ensemble(e, props):
-    return "  %-50s %s" % (
-        e,
-        " ".join(f"{k}={v}" for k, v in sorted(props.items())),
-    )
+    return f"  {e:50} " + " ".join(f"{k}={str_esc(v)}" for k, v in sorted(props.items()))
 
 
 def timestamp_of(time_string):
@@ -59,9 +62,18 @@ def get_active_ensembles(stopped, sanity=False, username=None):
 
 
 def list_active_ensembles(
-    stopped, sanity=False, username=None, show_in_progress=None, **args
+    stopped, sanity=False, username=None, show_in_progress=False, **args
 ):
     ensemble_list = get_active_ensembles(stopped, sanity, username)
+
+    if args["json"]:
+        for e, props in ensemble_list:
+            o = {"id": e, **props}
+            if show_in_progress:
+                o["in_progress"] = joshua_model.show_in_progress(e)
+            print(json.dumps(o))
+        return ensemble_list
+
     if stopped:
         print("All ensembles:")
     elif sanity:
@@ -73,11 +85,7 @@ def list_active_ensembles(
         if show_in_progress:
             print("\tCurrently active tests:")
             for props in joshua_model.show_in_progress(e):
-                print(
-                    "\t{}".format(
-                        " ".join(f"{k}={v}" for k, v in sorted(props.items()))
-                    )
-                )
+                print("\t" + " ".join(f"{k}={v}" for k, v in sorted(props.items())))
 
     return ensemble_list
 
@@ -125,7 +133,8 @@ def start_ensemble(
 
     if command:
         properties["test_command"] = command
-    print("Starting ensemble")
+
+    print("Starting ensemble", flush=True)
     # If a remote object storage URL is passed, store the URL instead of copying
     # the tarball into FoundationDB.
     if joshua_model.is_remote_tarball_url(tarball):
@@ -138,10 +147,10 @@ def start_ensemble(
             size = tarfile.tell()
             tarfile.seek(0, os.SEEK_SET)
             properties["data_size"] = size
-
             ensemble_id = joshua_model.create_ensemble(
                 username, properties, tarfile, sanity, False
             )
+
     print(format_ensemble(ensemble_id, properties))
     return str(ensemble_id)
 
@@ -149,7 +158,7 @@ def start_ensemble(
 def stop_ensemble(ensemble=None, username=None, sanity=False, printable=True, **args):
     if ensemble:
         if printable:
-            print("Stopping ensemble", ensemble)
+            print("Stopping ensemble", ensemble, flush=True)
         joshua_model.stop_ensemble(ensemble, sanity)
     else:
         # Stop all active ensembles for the given username
@@ -167,7 +176,7 @@ def stop_ensemble(ensemble=None, username=None, sanity=False, printable=True, **
         for e, props in ensemble_list:
             if "-" + username + "-" in str(e):
                 if printable:
-                    print("Stopping ensemble", e)
+                    print("Stopping ensemble", e, flush=True)
                 joshua_model.stop_ensemble(e, sanity)
 
 
@@ -320,7 +329,7 @@ def _delete_helper(to_delete, yes=False, dryrun=False, sanity=False):
                 joshua_model.delete_ensemble(
                     ensemble, compressed=compressed, sanity=ensemble_sanity
                 )
-                print("Ensemble", ensemble, "deleted")
+                print("Ensemble", ensemble, "deleted", flush=True)
             else:
                 print("Ensemble", ensemble, "not deleted (dry-run).")
         else:
@@ -410,7 +419,7 @@ def download_ensemble(ensemble, out=None, force=False, sanity=False, **args):
     if ensemble_dir:
         os.mkdir(ensemble_dir)
 
-    print(f"Downloading ensemble {ensemble} into {out_file}...")
+    print(f"Downloading ensemble {ensemble} into {out_file}...", flush=True)
     with open(out_file, "wb") as fout:
         joshua_model.get_ensemble_data(ensemble_id=ensemble, outfile=fout)
     print("Download completed")
@@ -453,7 +462,9 @@ if __name__ == "__main__":
         "--show-in-progress",
         action="store_true",
         help="If set, show the progress of currently running tests",
-        default=None,
+    )
+    parser_list.add_argument(
+        "--json", action="store_true", help="output in json lines"
     )
     parser_list.set_defaults(cmd=list_active_ensembles)
 

@@ -1,11 +1,8 @@
+import hashlib
 import io
-import joshua.joshua as joshua
-import joshua.joshua_agent as joshua_agent
-import joshua.joshua_model as joshua_model
 import math
 import os
 import pathlib
-import pytest
 import random
 import shutil
 import socket
@@ -14,15 +11,20 @@ import tarfile
 import tempfile
 import threading
 import time
-import hashlib
-import boto3
-from moto import mock_s3
-
 from typing import BinaryIO
+
+import boto3
+import pytest
+from moto import mock_s3
 
 import fdb
 
-fdb.api_version(630)
+import joshua.joshua as joshua
+import joshua.joshua_agent as joshua_agent
+import joshua.joshua_model as joshua_model
+
+
+fdb.api_version(710)
 
 
 #################### Fixtures ####################
@@ -297,7 +299,7 @@ def test_agent(tmp_path, empty_ensemble):
             "agent_idle_timeout": 1,
         },
     )
-    agent.setDaemon(True)
+    agent.daemon = True
     agent.start()
     joshua.tail_ensemble(ensemble_id, username="joshua/joshua")
     agent.join()
@@ -319,7 +321,7 @@ def test_stop_ensemble(tmp_path, empty_ensemble):
             "agent_idle_timeout": 1,
         },
     )
-    agent.setDaemon(True)
+    agent.daemon = True
     agent.start()
     while len(joshua_model.show_in_progress(ensemble_id)) == 0:
         time.sleep(0.001)
@@ -349,7 +351,7 @@ def test_dead_agent(tmp_path, empty_ensemble):
             "agent_idle_timeout": 1,
         },
     )
-    agent.setDaemon(True)
+    agent.daemon = True
     agent.start()
 
     # Ensemble should still eventually end
@@ -381,7 +383,7 @@ def test_two_agents(tmp_path, empty_ensemble):
                 "agent_idle_timeout": 1,
             },
         )
-        agent.setDaemon(True)
+        agent.daemon = True
         agent.start()
         agents.append(agent)
         # before starting agent two, wait until agent one has started on this ensemble
@@ -418,7 +420,7 @@ def test_two_ensembles_memory_usage(tmp_path, empty_ensemble):
             "agent_idle_timeout": 1,
         },
     )
-    agent.setDaemon(True)
+    agent.daemon = True
     agent.start()
 
     # Ensemble one should eventually end
@@ -446,7 +448,7 @@ def test_ensemble_passes(tmp_path, empty_ensemble):
             "agent_idle_timeout": 1,
         },
     )
-    agent.setDaemon(True)
+    agent.daemon = True
     agent.start()
     joshua.tail_ensemble(ensemble_id, username="joshua")
     agent.join()
@@ -467,7 +469,7 @@ def test_ensemble_fails(tmp_path, empty_ensemble_fail):
             "agent_idle_timeout": 1,
         },
     )
-    agent.setDaemon(True)
+    agent.daemon = True
     agent.start()
     joshua.tail_ensemble(ensemble_id, username="joshua")
     agent.join()
@@ -490,7 +492,7 @@ def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
                 "agent_idle_timeout": 1,
             },
         )
-        agent.setDaemon(True)
+        agent.daemon = True
         agent.start()
         agents.append(agent)
     time.sleep(0.5)  # Give the agents some time to start
@@ -595,7 +597,7 @@ def test_two_agents_large_ensemble(monkeypatch, tmp_path, empty_ensemble):
                 "agent_idle_timeout": 1,
             },
         )
-        agent.setDaemon(True)
+        agent.daemon = True
         agent.start()
         agents.append(agent)
         while True:

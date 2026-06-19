@@ -20,6 +20,7 @@
 
 import argparse
 import errno
+import logging
 import os
 import queue
 import random
@@ -32,13 +33,12 @@ import threading
 import time
 import traceback
 import datetime
-from pprint import pprint
+import subprocess
 
 # this is used to read / patch Pod labels
 from kubernetes import client, config
-
-import subprocess32 as subprocess
 import fdb
+
 from . import joshua_model
 from . import process_handling
 
@@ -151,11 +151,8 @@ def trim_jobqueue(cutoff_date, remove_jobs=True):
 def log(outputText, newline=True):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     message = f"[{timestamp}] {outputText}"
-    return (
-        print(message, file=getFileHandle())
-        if newline
-        else getFileHandle().write(message)
-    )
+    end = '\n' if newline else ''
+    print(message, file=getFileHandle(), end=end, flush=True)
 
 
 def agent_init(work_dir):
@@ -198,15 +195,6 @@ def ensemble_dir(ensemble_id=None, basepath=None):
     )
 
 
-def check_archive_path(name):
-    path = os.path.normpath(name)
-    if path.startswith("/"):
-        return False
-    if path.startswith(".."):
-        return False
-    return True
-
-
 def ensure_state_test_delay():
     """
     In testing this can be overriden to introduce a delay to simulate a large
@@ -239,8 +227,8 @@ def ensure_state(ensemble_id, where, properties, basepath=None):
         tarf = tarfile.open(fileobj=temp_file)
         tarf.extractall(
             path=tmpdir,
-            members=[m for m in tarf.getmembers() if check_archive_path(m.name)],
-        )
+            filter=tarfile.tar_filter,
+        )  # tar_filter refuses absolute paths, and relative paths that go outside target path
 
     os.symlink(
         os.path.join(basepath, "global_data"), os.path.join(tmpdir, "global_data")
@@ -617,7 +605,11 @@ class AsyncEnsemble:
                         # Still running after SIGTERM - force kill with SIGKILL
                         log("Process didn't terminate after SIGTERM - sending SIGKILL")
                         process.kill()
-                        remaining_out, remaining_err = process.communicate()
+                        try:
+                            remaining_out, remaining_err = process.communicate(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            log("Process didn't terminate after SIGKILL ?!")
+                            remaining_out = ""
 
                     # Combine partial output from timeout exception + remaining after terminate/kill
                     output = (timeout_ex.stdout or b"") + (remaining_out or b"")
@@ -788,7 +780,7 @@ def run_ensemble(
             "timeout_command_timeout": timeout_command_timeout,
         },
     )
-    asyncEnsembleThread.setDaemon(True)
+    asyncEnsembleThread.daemon = True
     asyncEnsembleThread.start()
     heartbeat_interval = get_heartbeat_interval()
     while True:
@@ -1083,13 +1075,21 @@ if __name__ == "__main__":
         help="top-level directory path in which joshua operates",
     )
     parser.add_argument(
+        "--agent-timeout",
+        type=int,
+        default=None,
+        help="An amount of time (in seconds) to wait before the agent terminates itself "
+        "(after the in-progress test is complete), to avoid problems with accumulated state."
+        "Default behavior is to never purposefully die.",
+    )
+    parser.add_argument(
         "--apoptosis",
         type=int,
         default=None,
         help="A pseudo-randomized amount of time (in seconds) to wait before the agent "
-        "kills itself in order to prevent agent decay. It is fuzzed to avoid mass "
-        "destruction, and it is never the case that the box is shut down during a "
-        "test. Default behavior is to never purposefully die.",
+        "terminates itself (after the in-progess test is complete), to avoid problems with "
+        "accumulated state. The time is \"fuzzed\" (adjusted) by +/- 50%% to avoid a mass "
+        "of agents terminating at the same time (thrashing a cluster scheduler).",
     )
     parser.add_argument(
         "--save-on",
@@ -1137,20 +1137,28 @@ if __name__ == "__main__":
     )
     arguments = parser.parse_args()
 
-    # Check for AGENT_TIMEOUT environment variable first, then command line argument
+    if arguments.apoptosis is not None and arguments.agent_timeout is not None:
+        log(f"ERROR both --agent-timeout and --apoptosis options set")
+        sys.exit(1)
+
+    # command-line argument overrides environment variable
     agent_timeout_env = os.environ.get("AGENT_TIMEOUT", None)
-    if agent_timeout_env is not None:
-        agent_timeout = int(agent_timeout_env)
-        log(f"Using AGENT_TIMEOUT from environment: {agent_timeout} seconds")
+
+    if arguments.agent_timeout is not None:
+        agent_timeout = arguments.agent_timeout
+        log(f"Using --agent-timeout of {agent_timeout} seconds")
     elif arguments.apoptosis is not None:
-        # Timeout is equal to the given argument with a random fuzz up to 50% of the argument.
-        # This is added to avoid having 500+ Mesos boxes suddenly crying out in terror and
-        # being suddenly silenced.
         agent_timeout = int(arguments.apoptosis * (1 + 0.5 * random.random()))
         log(f"Using --apoptosis timeout: {agent_timeout} seconds")
+    elif agent_timeout_env is not None:
+        agent_timeout = int(agent_timeout_env)
+        log(f"Using AGENT_TIMEOUT from environment: {agent_timeout} seconds")
     else:
         agent_timeout = None
         log("No agent timeout configured - agent will run indefinitely")
+
+    # joshua_model uses logging
+    logging.basicConfig(level=logging.INFO, format="[%(asctime)s)] (%(levelname).3s) %(message)s")
 
     joshua_model.open(arguments.cluster_file, arguments.dir_path)
     agent_init(arguments.work_dir)
