@@ -10,3 +10,5 @@ six==1.17.0
 boto3==1.42.97
 kubernetes==30.1.0
 moto[s3]==4.2.14
+black==26.5.1
+pyright==1.1.410
