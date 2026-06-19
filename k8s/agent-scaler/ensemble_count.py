@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-    ensemble_count.py
+ensemble_count.py
 """
+
 # This source file is part of the FoundationDB open source project
 #
 # Copyright 2013-2020 Apple Inc. and the FoundationDB project authors

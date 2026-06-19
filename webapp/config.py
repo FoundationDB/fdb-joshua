@@ -22,20 +22,21 @@ import os
 from dotenv import load_dotenv
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-load_dotenv(os.path.join(basedir, '.env'))
+load_dotenv(os.path.join(basedir, ".env"))
 
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-will-never-guess'
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'db.sqlite')
+    SECRET_KEY = os.environ.get("SECRET_KEY") or "you-will-never-guess"
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL"
+    ) or "sqlite:///" + os.path.join(basedir, "db.sqlite")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    if os.environ.get('MAX_CONTENT_LENGTH'):
-        MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH'))
+    if os.environ.get("MAX_CONTENT_LENGTH"):
+        MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH"))
     else:
         MAX_CONTENT_LENGTH = 100 * 1024 * 1024
-    JOSHUA_UPLOAD_FOLDER = os.environ.get(
-        'JOSHUA_UPLOAD_FOLDER') or os.path.join(basedir, 'upload')
-    JOSHUA_FDB_CLUSTER_FILE = os.environ.get(
-        'JOSHUA_FDB_CLUSTER_FILE') or 'fdb.cluster'
-    JOSHUA_NAMESPACE = os.environ.get('JOSHUA_NAMESPACE') or 'joshua'
+    JOSHUA_UPLOAD_FOLDER = os.environ.get("JOSHUA_UPLOAD_FOLDER") or os.path.join(
+        basedir, "upload"
+    )
+    JOSHUA_FDB_CLUSTER_FILE = os.environ.get("JOSHUA_FDB_CLUSTER_FILE") or "fdb.cluster"
+    JOSHUA_NAMESPACE = os.environ.get("JOSHUA_NAMESPACE") or "joshua"
