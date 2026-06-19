@@ -150,9 +150,11 @@ pytest -v
 
 In case you are running on OSX and installed the `fdbserver` binary with the MacOS package, you might need to set `export PATH="$PATH:/usr/local/libexec"`, to ensure that `fdbserver` is in your path.
 
-In addition we are running an opinionated [formatter](https://github.com/psf/black) and [linter](https://github.com/microsoft/pyright):
+In addition we are running an opinionated [formatter](https://github.com/psf/black) and [linter](https://github.com/pylint-dev/pylint):
 
 ```bash
-black . --check --diff
-pyright .
+# Format all files.
+black .
+# Run pylint.
+pylint .
 ```

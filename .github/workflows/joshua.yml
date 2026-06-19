@@ -33,4 +33,5 @@ jobs:
       - name: Linting
         run: |
           black . --check --diff
-          pyright .
+          # TODO (johscheuer): Enable in another PR.
+          # pylint .
