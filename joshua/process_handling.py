@@ -1,11 +1,12 @@
 """
-    process_handling.py
+process_handling.py
 
-    This is a collection of utility functions that are useful for handling
-    processes. They include the tools necessary to determine which processes
-    are subprocesses of the current Joshua process by looking at the appropriate
-    environment variables.
+This is a collection of utility functions that are useful for handling
+processes. They include the tools necessary to determine which processes
+are subprocesses of the current Joshua process by looking at the appropriate
+environment variables.
 """
+
 # This source file is part of the FoundationDB open source project
 #
 # Copyright 2013-2020 Apple Inc. and the FoundationDB project authors

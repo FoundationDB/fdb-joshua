@@ -1,6 +1,7 @@
 """
-    joshua_model.py
+joshua_model.py
 """
+
 # This source file is part of the FoundationDB open source project
 #
 # Copyright 2013-2020 Apple Inc. and the FoundationDB project authors
@@ -39,7 +40,6 @@ from typing import Dict, List, Optional, Tuple
 
 import fdb
 import fdb.tuple
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -97,7 +97,9 @@ def open(c_file=None, dir_path=("joshua",)):
     transaction_timeout = int(os.environ.get("TRANSACTION_TIMEOUT_MS", "45000"))
     # Retry limit applies to all transactions. This should prevent FDB to hang forever.
     transaction_retry_limit = int(os.environ.get("TRANSACTION_RETRY_LIMIT", "25"))
-    logger.info(f"transaction_timeout: {transaction_timeout} and transaction_retry_limit: {transaction_retry_limit}")
+    logger.info(
+        f"transaction_timeout: {transaction_timeout} and transaction_retry_limit: {transaction_retry_limit}"
+    )
     db.options.set_transaction_timeout(transaction_timeout)
     db.options.set_transaction_retry_limit(transaction_retry_limit)
     dir_top = create_or_open_top_path(db, dir_path)
@@ -111,7 +113,9 @@ def open(c_file=None, dir_path=("joshua",)):
     dir_ensemble_results_pass = dir_ensemble_results.create_or_open(db, "pass")
     dir_ensemble_results_fail = dir_ensemble_results.create_or_open(db, "fail")
     dir_ensemble_results_large = dir_ensemble_results.create_or_open(db, "large")
-    dir_ensemble_results_application = dir_ensemble_results.create_or_open(db, "application")
+    dir_ensemble_results_application = dir_ensemble_results.create_or_open(
+        db, "application"
+    )
     dir_failures = dir_top.create_or_open(db, "failures")
 
     dir_active_changes = dir_active
@@ -192,7 +196,9 @@ def unwrap_message(text):
 
 def load_datetime(string):
     #    print( 'string: {}  now: {}'.format(string, format_datetime(datetime.datetime.now(timezone.utc))) )
-    return datetime.datetime.strptime(string, TIMESTAMP_FMT).replace(tzinfo=datetime.timezone.utc)
+    return datetime.datetime.strptime(string, TIMESTAMP_FMT).replace(
+        tzinfo=datetime.timezone.utc
+    )
 
 
 def load_timedelta(string):
@@ -442,12 +448,11 @@ def create_ensemble(userid, properties, tarball, sanity=False, use_s3=False):
         # e.g.
         # $ aws s3api head-object --bucket mybucket --key path/to/tarball --query ETag --output text
         # "a7470bf1a0536f4fe8432c4392281027-7"
-        client = boto3.client('s3')
+        client = boto3.client("s3")
         response = client.head_object(
-            Bucket=tarball.split('/')[2],
-            Key='/'.join(tarball.split('/')[3:])
+            Bucket=tarball.split("/")[2], Key="/".join(tarball.split("/")[3:])
         )
-        hash = response['ETag'].replace('"', '')[:16]
+        hash = response["ETag"].replace('"', "")[:16]
         properties["s3url"] = tarball
     else:
         hash = get_hash(tarball)
@@ -497,7 +502,8 @@ def get_active_ensembles(
         if props.get("runtime", None) is None:
             if props.get("submitted", None) is not None:
                 props["runtime"] = format_timedelta(
-                    datetime.datetime.now(datetime.timezone.utc) - load_datetime(props["submitted"])
+                    datetime.datetime.now(datetime.timezone.utc)
+                    - load_datetime(props["submitted"])
                 )
         if props.get("stopped", None) is not None:
             props["remaining"] = "0"
@@ -632,12 +638,11 @@ def get_ensemble_data(ensemble_id, outfile=None):
     if "s3url" in properties:
         # Retrieve tarball from S3
         tarball = properties["s3url"]
-        client = boto3.client('s3')
+        client = boto3.client("s3")
         response = client.get_object(
-            Bucket=tarball.split('/')[2],
-            Key='/'.join(tarball.split('/')[3:])
+            Bucket=tarball.split("/")[2], Key="/".join(tarball.split("/")[3:])
         )
-        outfile.write(response['Body'].read())
+        outfile.write(response["Body"].read())
     else:
         _read_blob(db, dir_ensemble_data[ensemble_id], outfile)
     return outfile
@@ -706,12 +711,12 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
     failed = props.get("fail", 0)
     completed = passed + failed
     max_runs = props.get("max_runs", 0)
-    
+
     # max_runs == 0 means run forever
     if max_runs > 0 and completed >= max_runs:
         # Ensemble has reached its completion target, no more work needed
         return False
-    
+
     # Check if we're approaching the limit to avoid overshooting
     if max_runs > 0 and started >= max_runs:
         current_time = time.time()
@@ -1065,7 +1070,9 @@ def get_agent_failures(tr, time_start=None, time_end=None):
             :-1
         ]  # Last element is a random seed.
         info = (
-            datetime.datetime.fromtimestamp(raw_info[0]).strftime("%Y-%b-%d (%a) %I:%M:%S %p"),
+            datetime.datetime.fromtimestamp(raw_info[0]).strftime(
+                "%Y-%b-%d (%a) %I:%M:%S %p"
+            ),
         ) + raw_info[1:]
         msg = raw_failure.value
 

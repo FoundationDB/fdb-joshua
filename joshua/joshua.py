@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-    joshua.py
+joshua.py
 """
+
 # This source file is part of the FoundationDB open source project
 #
 # Copyright 2013-2020 Apple Inc. and the FoundationDB project authors
@@ -45,7 +46,9 @@ def str_esc(v):
 
 
 def format_ensemble(e, props):
-    return f"  {e:50} " + " ".join(f"{k}={str_esc(v)}" for k, v in sorted(props.items()))
+    return f"  {e:50} " + " ".join(
+        f"{k}={str_esc(v)}" for k, v in sorted(props.items())
+    )
 
 
 def timestamp_of(time_string):
@@ -107,7 +110,7 @@ def start_ensemble(
     priority=100,
     env=[],
     printable=True,
-    **args
+    **args,
 ):
     if not allow_multiple:
         stop_ensemble(username=username, sanity=sanity, printable=True)
@@ -211,7 +214,7 @@ def tail_ensemble(
     simple=False,
     stopped=False,
     username=None,
-    **args
+    **args,
 ):
     if simple:
         xml = True
@@ -389,9 +392,7 @@ def download_ensemble(ensemble, out=None, force=False, sanity=False, **args):
         ensemble = default_ensemble(sanity=sanity)
 
     if out is None:
-        out_file = os.path.abspath(
-            os.path.join(os.getcwd(), f"{ensemble}.tar.gz")
-        )
+        out_file = os.path.abspath(os.path.join(os.getcwd(), f"{ensemble}.tar.gz"))
     elif os.path.isdir(out):
         out_file = os.path.abspath(os.path.join(out, f"{ensemble}.tar.gz"))
     else:
@@ -462,9 +463,7 @@ if __name__ == "__main__":
         action="store_true",
         help="If set, show the progress of currently running tests",
     )
-    parser_list.add_argument(
-        "--json", action="store_true", help="output in json lines"
-    )
+    parser_list.add_argument("--json", action="store_true", help="output in json lines")
     parser_list.set_defaults(cmd=list_active_ensembles)
 
     parser_start = subparsers.add_parser("start", help="start a test ensemble")

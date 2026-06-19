@@ -27,7 +27,11 @@ jobs:
           sha256sum -c checks.txt && sudo dpkg -i *.deb
           sudo apt-get install libxml2-dev libxslt-dev
           python -m pip install -r test-requirements.txt
-
       - name: Test
         run: |
           pytest -v
+      - name: Linting
+        run: |
+          black . --check --diff
+          # TODO (johscheuer): Enable in another PR.
+          # pylint .

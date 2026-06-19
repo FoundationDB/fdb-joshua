@@ -22,7 +22,6 @@ import joshua.joshua as joshua
 import joshua.joshua_agent as joshua_agent
 import joshua.joshua_model as joshua_model
 
-
 fdb.api_version(630)
 
 
@@ -37,6 +36,7 @@ def getFreePort():
     result = addr[1]
     s.close()
     return result
+
 
 class EnsembleFactory:
     def __init__(self, tmp_path):
@@ -66,6 +66,7 @@ class EnsembleFactory:
 
     def done(self) -> None:
         self.ensemble.close()
+
 
 def empty_ensemble_factory(tmp_path, script_contents):
     """
@@ -99,11 +100,12 @@ def empty_ensemble_fail(tmp_path):
     """
     yield empty_ensemble_factory(tmp_path, "false")
 
+
 @pytest.fixture
 def empty_ensemble_joshua_done(tmp_path):
     factory = EnsembleFactory.with_script(tmp_path, "true")
-    factory.add_bash_script('joshua_done', './joshua_done_test.py $2 $6')
-    with pathlib.Path(__file__).parent.joinpath('joshua_done_test.py').open('rb') as f:
+    factory.add_bash_script("joshua_done", "./joshua_done_test.py $2 $6")
+    with pathlib.Path(__file__).parent.joinpath("joshua_done_test.py").open("rb") as f:
         factory.add_executable("joshua_done_test.py", f)
     factory.done()
     yield factory.file_name
@@ -168,6 +170,7 @@ def test_create_ensemble():
     ensemble_id = joshua_model.create_ensemble("joshua", {}, io.BytesIO())
     assert len(joshua_model.list_active_ensembles()) > 0
 
+
 def test_validate_ensemble(tmp_path, empty_ensemble):
     outfile = str(tmp_path) + "/" + "outfile"
     assert len(joshua_model.list_active_ensembles()) == 0
@@ -189,11 +192,12 @@ def test_validate_ensemble(tmp_path, empty_ensemble):
     print(newhash)
     assert orighash == newhash
 
+
 @mock_s3
 def test_validate_ensemble_s3(tmp_path, empty_ensemble):
-    bucket="test_bucket"
-    ensemble_path="tests" + "/" + empty_ensemble
-    s3url="s3://" + bucket + "/" + ensemble_path
+    bucket = "test_bucket"
+    ensemble_path = "tests" + "/" + empty_ensemble
+    s3url = "s3://" + bucket + "/" + ensemble_path
     outfile = str(tmp_path) + "/" + "outfile"
 
     with open(empty_ensemble, "rb") as fin:
@@ -220,6 +224,7 @@ def test_validate_ensemble_s3(tmp_path, empty_ensemble):
     assert newhash
     print(newhash)
     assert orighash == newhash
+
 
 def test_agent(tmp_path, empty_ensemble):
     """
@@ -445,7 +450,7 @@ def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
 @fdb.transactional
 def verify_application_state(tr, ensemble, num_runs):
     dir_path = joshua_model.get_application_dir(ensemble)
-    print('dir_path = ({})'.format(",".join(list(dir_path))))
+    print("dir_path = ({})".format(",".join(list(dir_path))))
     ensemble_dir = fdb.directory.open(tr, dir_path)
     count = 0
     for _, _ in tr[ensemble_dir.range()]:
@@ -463,8 +468,9 @@ def verify_application_state_deleted(tr, ensemble):
 
 def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
     max_runs: int = random.randint(1, 32)
-    ensemble_id = joshua_model.create_ensemble('joshua', {"max_runs": max_runs},
-                                               open(empty_ensemble_joshua_done, 'rb'))
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": max_runs}, open(empty_ensemble_joshua_done, "rb")
+    )
     agents = []
     for rank in range(10):
         agent = threading.Thread(
@@ -473,7 +479,8 @@ def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
             kwargs={
                 "work_dir": os.path.join(tmp_path, str(rank)),
                 "agent_idle_timeout": 1,
-            },)
+            },
+        )
         agent.start()
         agents.append(agent)
     # wait for agents to finish

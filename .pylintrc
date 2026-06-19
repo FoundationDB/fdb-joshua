@@ -13,7 +13,9 @@ ignore=third_party
 
 # Add files or directories matching the regex patterns to the blacklist. The
 # regex matches against base names, not paths.
-ignore-patterns=
+ignore-paths=^.venv/.*$,
+            # We don't use the webapp, this can be enabled later.
+             ^webapp/.*$
 
 # Pickle collected data for later comparisons.
 persistent=no
@@ -152,6 +154,8 @@ disable=abstract-method,
         wrong-import-order,
         xrange-builtin,
         zip-builtin-not-iterating,
+        # We should eventually enable this again.
+        line-too-long,
 
 
 [REPORTS]

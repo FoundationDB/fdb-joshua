@@ -1,6 +1,7 @@
 """
-    joshua
+joshua
 """
+
 from distutils.core import setup, Extension
 from collections import namedtuple
 

@@ -109,9 +109,11 @@ should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
 respectively.
 
 To start agents, run
+
 ```shell
 docker run --rm -v /home/centos/joshua/:/opt/joshua -it foundationdb/joshua-agent:latest
 ```
+
 The `-v` parameter is to pass the cluster file `/home/centos/joshua/fdb.cluster`
 for the docker to use. Change this parameter path to where the cluster file is
 stored.
@@ -121,3 +123,38 @@ number. Each agent also produces a log file at `/tmp/joshua_agent/XX.log`. If an
 agent died, its working directory is renamed as `/tmp/joshua_agent/XX.failed`
 and a new agent with a different ID number will be spawned. Agent spawning
 events are logged in log file `/tmp/joshua_agent/start_agent.log`.
+
+## Local development
+
+You can use [uv](https://github.com/astral-sh/uv) to setup the Python dependencies or any other tool that does the same thing like [venv](https://docs.python.org/3/library/venv.html):
+
+```bash
+# Only required once
+uv venv --python 3.13
+source .venv/bin/activate
+```
+
+Install all the dependencies, this step is only required if the dependencies have changes:
+
+```bash
+uv pip install -r test-requirements.txt
+```
+
+Running all the unit tests:
+
+```
+pytest -v
+```
+
+**NOTE**: The Python tests require `fdbserver` and `fdbcli` to be installed in your path.
+
+In case you are running on OSX and installed the `fdbserver` binary with the MacOS package, you might need to set `export PATH="$PATH:/usr/local/libexec"`, to ensure that `fdbserver` is in your path.
+
+In addition we are running an opinionated [formatter](https://github.com/psf/black) and [linter](https://github.com/pylint-dev/pylint):
+
+```bash
+# Format all files.
+black .
+# Run pylint.
+pylint .
+```

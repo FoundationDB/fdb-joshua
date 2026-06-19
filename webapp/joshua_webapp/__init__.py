@@ -20,7 +20,7 @@ migrate = Migrate()
 
 bootstrap = Bootstrap()
 
-fileConfig('logging.conf')
+fileConfig("logging.conf")
 
 
 def create_app(config_class=Config):
@@ -30,20 +30,25 @@ def create_app(config_class=Config):
     db.init_app(app)
 
     login_manager = LoginManager()
-    login_manager.login_view = 'auth.login'
+    login_manager.login_view = "auth.login"
     login_manager.init_app(app)
 
     migrate.init_app(app, db)
     bootstrap.init_app(app)
 
     # Make sure cluster file is present
-    if not os.path.exists(app.config['JOSHUA_FDB_CLUSTER_FILE']):
-        raise Exception('JOSHUA_FDB_CLUSTER_FILE {} not found'.format(
-            app.config['JOSHUA_FDB_CLUSTER_FILE']))
-    joshua_model.open(app.config['JOSHUA_FDB_CLUSTER_FILE'],
-                      (app.config['JOSHUA_NAMESPACE'],))
-    app.logger.info('Using cluster file: {}'.format(
-        app.config['JOSHUA_FDB_CLUSTER_FILE']))
+    if not os.path.exists(app.config["JOSHUA_FDB_CLUSTER_FILE"]):
+        raise Exception(
+            "JOSHUA_FDB_CLUSTER_FILE {} not found".format(
+                app.config["JOSHUA_FDB_CLUSTER_FILE"]
+            )
+        )
+    joshua_model.open(
+        app.config["JOSHUA_FDB_CLUSTER_FILE"], (app.config["JOSHUA_NAMESPACE"],)
+    )
+    app.logger.info(
+        "Using cluster file: {}".format(app.config["JOSHUA_FDB_CLUSTER_FILE"])
+    )
 
     from .models import User
 
@@ -54,14 +59,17 @@ def create_app(config_class=Config):
 
     # blueprint for auth routes in our app
     from .auth import auth as auth_blueprint
+
     app.register_blueprint(auth_blueprint)
 
     # blueprint for non-auth parts of app
     from .main import main as main_blueprint
+
     app.register_blueprint(main_blueprint)
 
     # blueprint for REST APIs
     from .api import api as api_blueprint
-    app.register_blueprint(api_blueprint, url_prefix='/api')
+
+    app.register_blueprint(api_blueprint, url_prefix="/api")
 
     return app

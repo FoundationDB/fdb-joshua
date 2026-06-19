@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-    stop_completed_ensembles.py - Stop ensembles that have reached max_runs.
+stop_completed_ensembles.py - Stop ensembles that have reached max_runs.
 
-    Catches the race condition where concurrent agents all read a stale
-    'ended' count via snapshot reads and none triggers _stop_ensemble.
+Catches the race condition where concurrent agents all read a stale
+'ended' count via snapshot reads and none triggers _stop_ensemble.
 """
 
 import os
 import sys
 import argparse
 import joshua_model
-
 
 if __name__ == "__main__":
     name_space = os.environ.get("JOSHUA_NAMESPACE", "joshua")
