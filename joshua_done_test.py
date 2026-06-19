@@ -5,7 +5,7 @@ import fdb.tuple
 import os
 import random
 
-fdb.api_version(630)
+fdb.api_version(710)
 
 from typing import List
 

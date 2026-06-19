@@ -23,7 +23,7 @@ import joshua.joshua_agent as joshua_agent
 import joshua.joshua_model as joshua_model
 
 
-fdb.api_version(630)
+fdb.api_version(710)
 
 
 #################### Fixtures ####################
