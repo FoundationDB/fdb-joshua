@@ -146,6 +146,14 @@ def get_hash(file):
     return hash.hexdigest()
 
 
+def sanitize_for_k8s_label(value):
+    sanitized = re.sub(r'[^a-zA-Z0-9_.-]', '-', value)
+    sanitized = sanitized.strip('_.-')
+    if not sanitized:
+        sanitized = 'x'
+    return sanitized
+
+
 def transactional(func):
     f1 = fdb.transactional(func)
 
@@ -492,7 +500,9 @@ def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False)
     # Trim this because kubernetes labels are limited to 63 characters
     # See https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
     # So we use 15 + 1 + 27 + 1 + 16 = 60 here.
-    ensemble_id = timestamp + "-" + userid[:27] + "-" + hash[:16]
+    ensemble_id = sanitize_for_k8s_label(
+        timestamp + "-" + userid[:27] + "-" + hash[:16]
+    )
     if "submitted" not in properties:
         properties["submitted"] = timestamp
     if not use_remote:
