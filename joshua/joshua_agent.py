@@ -547,8 +547,10 @@ class AsyncEnsemble:
                 pass
 
             # Update the ensemble label
-            if pod_desc.metadata.labels.get('ensemble', '') != ensemble:
-                v1.patch_namespaced_pod(pod_name, namespace, {"metadata":{"labels":{"ensemble":ensemble}}})
+            # Just in case of ensembles created before joshua_model sanitize id fix
+            sanitized_ensemble = joshua_model.sanitize_for_k8s_label(ensemble)
+            if pod_desc.metadata.labels.get('ensemble', '') != sanitized_ensemble:
+                v1.patch_namespaced_pod(pod_name, namespace, {"metadata":{"labels":{"ensemble":sanitized_ensemble}}})
 
         # Ensure its local state exists
         where = ensemble_dir(ensemble, basepath=work_dir)
