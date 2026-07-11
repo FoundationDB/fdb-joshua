@@ -404,6 +404,107 @@ def test_two_agents(tmp_path, empty_ensemble):
         agent.join()
 
 
+def test_concurrent_claims_preserve_max_runs(empty_ensemble):
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    max_runs = 32
+    claimant_count = 128
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua",
+        {
+            "max_runs": max_runs,
+            joshua_model.CLAIM_SHARD_COUNT_PROPERTY: joshua_model.CLAIM_SHARD_COUNT,
+        },
+        open(empty_ensemble, "rb"),
+    )
+    try:
+        barrier = threading.Barrier(claimant_count)
+        results = []
+        errors = []
+        lock = threading.Lock()
+
+        def claim(seed):
+            try:
+                barrier.wait()
+                result = joshua_model.try_starting_test(ensemble_id, seed)
+                with lock:
+                    results.append(result)
+            except Exception as e:
+                with lock:
+                    errors.append(e)
+
+        claimants = [
+            threading.Thread(target=claim, args=(seed,))
+            for seed in range(claimant_count)
+        ]
+        for claimant in claimants:
+            claimant.start()
+        for claimant in claimants:
+            claimant.join(timeout=10)
+
+        assert not [claimant for claimant in claimants if claimant.is_alive()]
+        assert not errors
+        assert sum(results) == max_runs
+        assert get_started(joshua_model.db) == max_runs
+        assert len(joshua_model.show_in_progress(ensemble_id)) == max_runs
+    finally:
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+def test_dead_claim_releases_shard(empty_ensemble):
+    @fdb.transactional
+    def expire_heartbeat(tr):
+        tr[
+            joshua_model.dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]
+        ] = fdb.tuple.pack((0,))
+
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua",
+        {
+            "max_runs": 1,
+            joshua_model.CLAIM_SHARD_COUNT_PROPERTY: joshua_model.CLAIM_SHARD_COUNT,
+        },
+        open(empty_ensemble, "rb"),
+    )
+    try:
+        seed = 12345
+        assert joshua_model.try_starting_test(ensemble_id, seed)
+        assert get_started(joshua_model.db) == 1
+
+        expire_heartbeat(joshua_model.db)
+        assert joshua_model.should_run_ensemble(ensemble_id)
+        assert get_started(joshua_model.db) == 0
+
+        # max_runs=1 has one shard, so this verifies that stealing the dead
+        # claim released the same shard for the next seed.
+        assert joshua_model.try_starting_test(ensemble_id, seed + 1)
+        assert get_started(joshua_model.db) == 1
+    finally:
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+def test_legacy_claims_keep_exact_max_runs(empty_ensemble):
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(empty_ensemble, "rb")
+    )
+    try:
+        assert joshua_model.try_starting_test(ensemble_id, 12345)
+        assert not joshua_model.try_starting_test(ensemble_id, 12346)
+        assert get_started(joshua_model.db) == 1
+    finally:
+        joshua_model.delete_ensemble(ensemble_id)
+
+
 def test_two_ensembles_memory_usage(tmp_path, empty_ensemble):
     """
     :tmp_path: https://docs.pytest.org/en/stable/tmpdir.html
