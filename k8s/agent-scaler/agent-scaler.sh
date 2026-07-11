@@ -49,6 +49,9 @@ fi
 # run forever
 while true; do
 
+    # Let the Kubernetes TTL controller own finished-job retention and cleanup
+    # when enabled, instead of scanning every job in the namespace here.
+    if [ "$use_k8s_ttl_controller" == false ] ; then
     # Build list of Failed jobs to protect (retain for 1 day for debugging)
     # These jobs should NOT be deleted by the normal cleanup below
     declare -A protected_failed_jobs
@@ -83,7 +86,6 @@ while true; do
         echo "$(date -Iseconds) === Protecting ${protected_count} failed job(s) less than 1 day old === (AGENT_NAME: ${AGENT_NAME})"
     fi
 
-    if [ $use_k8s_ttl_controller == false ] ; then
       # cleanup finished jobs (status 1/1)
       # Filter by AGENT_NAME and check 3rd column for "1/1" (completions)
       for job in $(kubectl get jobs -n "${namespace}" --no-headers | { grep -E -e "^${AGENT_NAME}-[0-9]+(-[0-9]+)?\\s" || true; } | awk '$3 == "1/1" {print $1}'); do
@@ -123,8 +125,6 @@ while true; do
             fi
           fi
       done
-    fi
-
     # Cleanup Failed jobs that are older than 1 day (no longer need protection for debugging)
     kubectl get jobs -n "${namespace}" -o json 2>/dev/null | \
       jq -r '.items[] | select(.status.conditions[]? | select(.type=="Failed" and .status=="True")) | .metadata.name + " " + .metadata.creationTimestamp' | \
@@ -145,6 +145,7 @@ while true; do
     
     # Clean up temp file
     rm -f /tmp/protected_failed_jobs_${AGENT_NAME}.txt
+    fi
 
     # Stop any ensembles that reached max_runs but weren't stopped due to
     # the snapshot read race in _insert_results.
