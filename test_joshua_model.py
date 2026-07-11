@@ -170,6 +170,25 @@ def test_create_ensemble():
     assert len(joshua_model.list_active_ensembles()) > 0
 
 
+def test_invalid_claim_shard_count_does_not_upload_data():
+    @fdb.transactional
+    def get_ensemble_data_keys(tr):
+        return list(tr[joshua_model.dir_ensemble_data.range()])
+
+    with pytest.raises(ValueError):
+        joshua_model.create_ensemble(
+            "joshua",
+            {
+                "max_runs": 1,
+                joshua_model.CLAIM_SHARD_COUNT_PROPERTY: "bogus",
+            },
+            io.BytesIO(b"unused tarball data"),
+        )
+
+    assert get_ensemble_data_keys(joshua_model.db) == []
+    assert joshua_model.list_active_ensembles() == []
+
+
 def test_remote_tarball_url_detection():
     assert joshua_model.is_remote_tarball_url("s3://bucket/path/to/tarball.tar.gz")
     assert joshua_model.is_remote_tarball_url(
@@ -409,13 +428,14 @@ def test_concurrent_claims_preserve_max_runs(empty_ensemble):
     def get_started(tr):
         return joshua_model._get_snap_counter(tr, ensemble_id, "started")
 
-    max_runs = 32
+    max_runs = 33
     claimant_count = 128
     ensemble_id = joshua_model.create_ensemble(
         "joshua",
         {
             "max_runs": max_runs,
-            joshua_model.CLAIM_SHARD_COUNT_PROPERTY: joshua_model.CLAIM_SHARD_COUNT,
+            # Exercise uneven shard quotas: 9 + 8 + 8 + 8 == 33.
+            joshua_model.CLAIM_SHARD_COUNT_PROPERTY: 4,
         },
         open(empty_ensemble, "rb"),
     )
@@ -464,27 +484,31 @@ def test_dead_claim_releases_shard(empty_ensemble):
     def get_started(tr):
         return joshua_model._get_snap_counter(tr, ensemble_id, "started")
 
+    max_runs = 2
+    shard_count = 2
+    properties = {
+        "max_runs": max_runs,
+        joshua_model.CLAIM_SHARD_COUNT_PROPERTY: joshua_model.CLAIM_SHARD_COUNT,
+    }
     ensemble_id = joshua_model.create_ensemble(
         "joshua",
-        {
-            "max_runs": 1,
-            joshua_model.CLAIM_SHARD_COUNT_PROPERTY: joshua_model.CLAIM_SHARD_COUNT,
-        },
+        properties,
         open(empty_ensemble, "rb"),
     )
+    assert properties[joshua_model.CLAIM_SHARD_COUNT_PROPERTY] == shard_count
     try:
-        seed = 12345
+        seed = 1  # shard 1
         assert joshua_model.try_starting_test(ensemble_id, seed)
-        assert get_started(joshua_model.db) == 1
+        assert joshua_model.try_starting_test(ensemble_id, 2)  # shard 0
+        assert get_started(joshua_model.db) == max_runs
 
         expire_heartbeat(joshua_model.db)
         assert joshua_model.should_run_ensemble(ensemble_id)
-        assert get_started(joshua_model.db) == 0
+        assert get_started(joshua_model.db) == max_runs - 1
 
-        # max_runs=1 has one shard, so this verifies that stealing the dead
-        # claim released the same shard for the next seed.
-        assert joshua_model.try_starting_test(ensemble_id, seed + 1)
-        assert get_started(joshua_model.db) == 1
+        # seed + shard_count maps to the same nonzero shard as the dead claim.
+        assert joshua_model.try_starting_test(ensemble_id, seed + shard_count)
+        assert get_started(joshua_model.db) == max_runs
     finally:
         joshua_model.delete_ensemble(ensemble_id)
 
