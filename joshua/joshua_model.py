@@ -437,14 +437,7 @@ def _delete_blob(tr, subspace):
     del tr[subspace.range()]
 
 
-@fdb.transactional
-def _create_ensemble(tr, ensemble_id, properties, sanity=False):
-    dir, changes = get_dir_changes(sanity)
-
-    if tr[dir_all_ensembles[ensemble_id]] != None:
-        print(f"{ensemble_id} already inserted")
-        return  # Already inserted
-    properties = dict(properties)
+def _normalize_claim_shard_properties(properties):
     max_runs = int(properties.get("max_runs", 0) or 0)
     requested_claim_shards = int(
         properties.get(CLAIM_SHARD_COUNT_PROPERTY, 0) or 0
@@ -460,6 +453,15 @@ def _create_ensemble(tr, ensemble_id, properties, sanity=False):
         )
     else:
         properties.pop(CLAIM_SHARD_COUNT_PROPERTY, None)
+
+
+@fdb.transactional
+def _create_ensemble(tr, ensemble_id, properties, sanity=False):
+    dir, changes = get_dir_changes(sanity)
+
+    if tr[dir_all_ensembles[ensemble_id]] != None:
+        print(f"{ensemble_id} already inserted")
+        return  # Already inserted
     tr[dir_all_ensembles[ensemble_id]] = b""
     for k, v in properties.items():
         tr[dir_all_ensembles[ensemble_id]["properties"][k]] = fdb.tuple.pack((v,))
@@ -514,6 +516,9 @@ def _get_remote_tarball_hash(tarball, properties):
 
 
 def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+    # Validate and normalize before fetching or uploading the tarball. A bad
+    # claim_shard_count should not leave unreferenced ensemble data behind.
+    _normalize_claim_shard_properties(properties)
     if use_remote:
         hash = _get_remote_tarball_hash(tarball, properties)
     else:
