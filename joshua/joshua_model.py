@@ -50,7 +50,7 @@ FDBError = fdb.FDBError
 
 ONE = b"\x01" + b"\x00" * 7
 TIMESTAMP_FMT = "%Y%m%d-%H%M%S"
-CLAIM_SHARD_COUNT = 10000
+CLAIM_SHARD_MAX = 10000
 CLAIM_SHARD_COUNT_PROPERTY = "claim_shard_count"
 CLAIM_SHARD_PROPERTY = "claim_shard"
 
@@ -449,7 +449,7 @@ def _normalize_claim_shard_properties(properties):
         # opt-in so a rolling upgrade can drain legacy agents before creating
         # an ensemble that uses it.
         properties[CLAIM_SHARD_COUNT_PROPERTY] = min(
-            max_runs, requested_claim_shards, CLAIM_SHARD_COUNT
+            max_runs, requested_claim_shards, CLAIM_SHARD_MAX
         )
     else:
         properties.pop(CLAIM_SHARD_COUNT_PROPERTY, None)
