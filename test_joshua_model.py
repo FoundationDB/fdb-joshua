@@ -488,7 +488,7 @@ def test_dead_claim_releases_shard(empty_ensemble):
     shard_count = 2
     properties = {
         "max_runs": max_runs,
-        joshua_model.CLAIM_SHARD_COUNT_PROPERTY: joshua_model.CLAIM_SHARD_COUNT,
+        joshua_model.CLAIM_SHARD_COUNT_PROPERTY: joshua_model.CLAIM_SHARD_MAX,
     }
     ensemble_id = joshua_model.create_ensemble(
         "joshua",
