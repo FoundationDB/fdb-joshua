@@ -864,7 +864,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
 
             _decrement(tr, ensemble_id, "started")
             claim_shard = tr[
-                dir_ensemble_incomplete[ensemble_id][max_seed][
+                dir_ensemble_incomplete[ensemble_id][dead_seed][
                     CLAIM_SHARD_PROPERTY
                 ]
             ]
