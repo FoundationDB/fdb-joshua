@@ -283,6 +283,63 @@ def test_validate_ensemble_azure_blob(monkeypatch, tmp_path, empty_ensemble):
         == azure_blob_url
     )
 
+
+def test_azure_blob_client_uses_workload_identity(monkeypatch):
+    import azure.identity
+    from azure.storage.blob import BlobClient
+
+    blob_url = "https://testaccount.blob.core.windows.net/test-container/test.tar.gz"
+    expected_credential = object()
+    captured = {}
+
+    def fake_credential(**kwargs):
+        captured["credential_kwargs"] = kwargs
+        return expected_credential
+
+    def fake_blob_client(url, **kwargs):
+        captured["url"] = url
+        captured["blob_kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setenv("AZURE_TENANT_ID", "tenant-id")
+    monkeypatch.setenv("AZURE_CLIENT_ID", "client-id")
+    monkeypatch.setenv("AZURE_FEDERATED_TOKEN_FILE", "/var/run/secrets/azure/token")
+    monkeypatch.setattr(azure.identity, "WorkloadIdentityCredential", fake_credential)
+    monkeypatch.setattr(BlobClient, "from_blob_url", staticmethod(fake_blob_client))
+
+    joshua_model._get_azure_blob_client(blob_url)
+
+    assert captured["credential_kwargs"] == {
+        "tenant_id": "tenant-id",
+        "client_id": "client-id",
+        "token_file_path": "/var/run/secrets/azure/token",
+    }
+    assert captured["url"] == blob_url
+    assert captured["blob_kwargs"] == {"credential": expected_credential}
+
+
+def test_azure_blob_client_preserves_url_credentials(monkeypatch):
+    from azure.storage.blob import BlobClient
+
+    blob_url = (
+        "https://testaccount.blob.core.windows.net/test-container/test.tar.gz"
+        "?sv=test&sig=test-signature"
+    )
+    captured = {}
+
+    def fake_blob_client(url, **kwargs):
+        captured["url"] = url
+        captured["blob_kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setenv("AZURE_FEDERATED_TOKEN_FILE", "/var/run/secrets/azure/token")
+    monkeypatch.setattr(BlobClient, "from_blob_url", staticmethod(fake_blob_client))
+
+    joshua_model._get_azure_blob_client(blob_url)
+
+    assert captured == {"url": blob_url, "blob_kwargs": {}}
+
+
 def test_agent(tmp_path, empty_ensemble):
     """
     :tmp_path: https://docs.pytest.org/en/stable/tmpdir.html
