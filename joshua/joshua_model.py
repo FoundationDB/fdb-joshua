@@ -487,6 +487,17 @@ def is_remote_tarball_url(tarball):
 def _get_azure_blob_client(blob_url):
     from azure.storage.blob import BlobClient
 
+    token_file_path = os.environ.get("AZURE_FEDERATED_TOKEN_FILE")
+    if token_file_path and not urlparse(blob_url).query:
+        from azure.identity import WorkloadIdentityCredential
+
+        credential = WorkloadIdentityCredential(
+            tenant_id=os.environ.get("AZURE_TENANT_ID"),
+            client_id=os.environ.get("AZURE_CLIENT_ID"),
+            token_file_path=token_file_path,
+        )
+        return BlobClient.from_blob_url(blob_url, credential=credential)
+
     return BlobClient.from_blob_url(blob_url)
 
 
