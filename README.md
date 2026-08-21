@@ -61,6 +61,22 @@ commands):
 python3 -m joshua.joshua start --tarball path/to/archive.tar.gz
 ```
 
+Large ensembles can opt into sharded test admission after every agent that can
+claim from them has been upgraded to a version that supports it:
+
+```bash
+python3 -m joshua.joshua start --tarball path/to/archive.tar.gz \
+    --property claim_shard_count=10000
+```
+
+Sharded admission preserves the exact `max_runs` limit while avoiding one
+shared claim counter for every agent. Do not enable it during a rolling agent
+upgrade: older agents do not record shard claims.
+
+For best utilization, choose a shard count that leaves multiple claim slots per
+shard. Agents choose shards from random seeds, so one-slot shards can retry
+against full shards while capacity remains elsewhere.
+
 `--tarball` can also point at a remote tarball in S3 (`s3://bucket/key`) or Azure
 Blob Storage (`https://account.blob.core.windows.net/container/blob`). Azure
 Blob URLs must be directly readable by the agent, for example by including a SAS
