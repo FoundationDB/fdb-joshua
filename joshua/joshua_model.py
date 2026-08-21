@@ -50,6 +50,9 @@ FDBError = fdb.FDBError
 
 ONE = b"\x01" + b"\x00" * 7
 TIMESTAMP_FMT = "%Y%m%d-%H%M%S"
+CLAIM_SHARD_MAX = 10000
+CLAIM_SHARD_COUNT_PROPERTY = "claim_shard_count"
+CLAIM_SHARD_PROPERTY = "claim_shard"
 
 TIMEDELTA_REGEX1 = re.compile(
     r"(?P<days>[-\d]+) day[s]*, (?P<hours>\d+):(?P<minutes>\d+):(?P<seconds>\d[\.\d+]*)"
@@ -80,6 +83,7 @@ dir_ensemble_results = None
 dir_ensemble_results_pass = None
 dir_ensemble_results_fail = None
 dir_ensemble_incomplete = None
+dir_ensemble_claims = None
 dir_ensemble_results_large = None
 dir_ensemble_results_application = None
 dir_active_changes = None
@@ -90,6 +94,7 @@ dir_failures = None
 def open(c_file=None, dir_path=("joshua",)):
     global cluster_file, db, dir_top, dir_ensembles, dir_active, dir_sanity, dir_all_ensembles, dir_ensemble_data
     global dir_ensemble_results, dir_ensemble_results_pass, dir_ensemble_results_fail, dir_ensemble_incomplete
+    global dir_ensemble_claims
     global dir_ensemble_results_large, dir_ensemble_results_application, dir_active_changes, dir_sanity_changes, dir_failures
 
     cluster_file = c_file
@@ -108,6 +113,7 @@ def open(c_file=None, dir_path=("joshua",)):
     dir_all_ensembles = dir_ensembles.create_or_open(db, "all")
     dir_ensemble_data = dir_ensembles.create_or_open(db, "data")
     dir_ensemble_incomplete = dir_ensembles.create_or_open(db, "incomplete")
+    dir_ensemble_claims = dir_ensembles.create_or_open(db, "claims")
     dir_ensemble_results = dir_ensembles.create_or_open(db, "results")
     dir_ensemble_results_pass = dir_ensemble_results.create_or_open(db, "pass")
     dir_ensemble_results_fail = dir_ensemble_results.create_or_open(db, "fail")
@@ -431,6 +437,24 @@ def _delete_blob(tr, subspace):
     del tr[subspace.range()]
 
 
+def _normalize_claim_shard_properties(properties):
+    max_runs = int(properties.get("max_runs", 0) or 0)
+    requested_claim_shards = int(
+        properties.get(CLAIM_SHARD_COUNT_PROPERTY, 0) or 0
+    )
+    if max_runs > 0 and requested_claim_shards > 0:
+        # Each shard owns an exact portion of max_runs. Claiming one shard
+        # instead of the aggregate started counter lets many agents start
+        # concurrently without relaxing started <= max_runs. This protocol is
+        # opt-in so a rolling upgrade can drain legacy agents before creating
+        # an ensemble that uses it.
+        properties[CLAIM_SHARD_COUNT_PROPERTY] = min(
+            max_runs, requested_claim_shards, CLAIM_SHARD_MAX
+        )
+    else:
+        properties.pop(CLAIM_SHARD_COUNT_PROPERTY, None)
+
+
 @fdb.transactional
 def _create_ensemble(tr, ensemble_id, properties, sanity=False):
     dir, changes = get_dir_changes(sanity)
@@ -463,6 +487,17 @@ def is_remote_tarball_url(tarball):
 def _get_azure_blob_client(blob_url):
     from azure.storage.blob import BlobClient
 
+    token_file_path = os.environ.get("AZURE_FEDERATED_TOKEN_FILE")
+    if token_file_path and not urlparse(blob_url).query:
+        from azure.identity import WorkloadIdentityCredential
+
+        credential = WorkloadIdentityCredential(
+            tenant_id=os.environ.get("AZURE_TENANT_ID"),
+            client_id=os.environ.get("AZURE_CLIENT_ID"),
+            token_file_path=token_file_path,
+        )
+        return BlobClient.from_blob_url(blob_url, credential=credential)
+
     return BlobClient.from_blob_url(blob_url)
 
 
@@ -492,6 +527,9 @@ def _get_remote_tarball_hash(tarball, properties):
 
 
 def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+    # Validate and normalize before fetching or uploading the tarball. A bad
+    # claim_shard_count should not leave unreferenced ensemble data behind.
+    _normalize_claim_shard_properties(properties)
     if use_remote:
         hash = _get_remote_tarball_hash(tarball, properties)
     else:
@@ -653,6 +691,7 @@ def _delete_ensemble_data(tr, ensemble_id, sanity=False):
     if "s3url" not in properties and "azure_blob_url" not in properties:
         # Delete the record that this ensemble exists.
         _delete_blob(tr, dir_ensemble_data[ensemble_id])
+    del tr[dir_ensemble_claims[ensemble_id].range()]
     del tr[dir_all_ensembles[ensemble_id].range()]
     del tr[dir_all_ensembles[ensemble_id]]
 
@@ -717,12 +756,52 @@ def _add(tr: fdb.Transaction, ensemble_id: str, counter: str, value: int) -> Non
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], byte_val)
 
 
-def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
-    value = tr.snapshot.get(dir_all_ensembles[ensemble_id]["count"][counter])
+def _get_property(tr: fdb.Transaction, ensemble_id: str, property: str, default=0):
+    value = tr[dir_all_ensembles[ensemble_id]["properties"][property]]
+    if value == None:
+        return default
+    return fdb.tuple.unpack(value)[0]
+
+
+def _get_counter(
+    tr: fdb.Transaction, ensemble_id: str, counter: str, snapshot=False
+) -> int:
+    reader = tr.snapshot if snapshot else tr
+    value = reader[dir_all_ensembles[ensemble_id]["count"][counter]]
     if value == None:
         return 0
-    else:
-        return struct.unpack("<Q", b"" + value)[0]
+    return struct.unpack("<Q", b"" + value)[0]
+
+
+def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
+    return _get_counter(tr, ensemble_id, counter, snapshot=True)
+
+
+def _claim_shard(seed: int, shard_count: int) -> int:
+    return seed % shard_count
+
+
+def _claim_shard_limit(max_runs: int, shard: int, shard_count: int) -> int:
+    return max_runs // shard_count + int(shard < max_runs % shard_count)
+
+
+def _get_claim_shard_counter(tr: fdb.Transaction, ensemble_id: str, shard: int) -> int:
+    value = tr[dir_ensemble_claims[ensemble_id][shard]]
+    if value == None:
+        return 0
+    return struct.unpack("<Q", b"" + value)[0]
+
+
+def _increment_claim_shard(
+    tr: fdb.Transaction, ensemble_id: str, shard: int
+) -> None:
+    tr.add(dir_ensemble_claims[ensemble_id][shard], ONE)
+
+
+def _decrement_claim_shard(
+    tr: fdb.Transaction, ensemble_id: str, shard: int
+) -> None:
+    tr.add(dir_ensemble_claims[ensemble_id][shard], struct.pack("<q", -1))
 
 
 def _get_seeds_and_heartbeats(
@@ -759,7 +838,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
     if max_runs > 0 and completed >= max_runs:
         # Ensemble has reached its completion target, no more work needed
         return False
-    
+
     # Check if we're approaching the limit to avoid overshooting
     if max_runs > 0 and started >= max_runs:
         current_time = time.time()
@@ -784,6 +863,15 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
             )
 
             _decrement(tr, ensemble_id, "started")
+            claim_shard = tr[
+                dir_ensemble_incomplete[ensemble_id][dead_seed][
+                    CLAIM_SHARD_PROPERTY
+                ]
+            ]
+            if claim_shard != None:
+                _decrement_claim_shard(
+                    tr, ensemble_id, fdb.tuple.unpack(claim_shard)[0]
+                )
             # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
             # We only want one agent to succeed in taking over for the dead agent's run/seed.
             tr.add_read_conflict_key(
@@ -832,16 +920,36 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
         # Don't run the same seed twice simultaneously
         return tr[dir_ensemble_incomplete[ensemble_id][seed]] == instanceid
 
-    props = _get_ensemble_properties(tr, ensemble_id)
-    started = props.get("started", 0)
-    max_runs = props.get("max_runs", 0)
-    if max_runs > 0 and started >= max_runs:
-        return False
+    max_runs = int(_get_property(tr, ensemble_id, "max_runs", 0) or 0)
+    claim_shard_count = int(
+        _get_property(tr, ensemble_id, CLAIM_SHARD_COUNT_PROPERTY, 0) or 0
+    )
+    claimed_shard = None
+    if max_runs > 0:
+        if claim_shard_count > 0:
+            # The aggregate started counter remains useful for status and for
+            # a cheap fast-fail after all shards are full, but it is only read
+            # at snapshot isolation here. The serializable admission check is
+            # isolated to one shard so concurrent agents do not all conflict
+            # on count/started.
+            if _get_snap_counter(tr, ensemble_id, "started") >= max_runs:
+                return False
+            shard = _claim_shard(seed, claim_shard_count)
+            shard_limit = _claim_shard_limit(max_runs, shard, claim_shard_count)
+            if _get_claim_shard_counter(tr, ensemble_id, shard) >= shard_limit:
+                return False
+            _increment_claim_shard(tr, ensemble_id, shard)
+            claimed_shard = shard
+        elif _get_counter(tr, ensemble_id, "started") >= max_runs:
+            # Ensembles created before claim sharding keep the old exact
+            # admission behavior.
+            return False
 
-    # We read started and max_runs at serializable isolation, so we do have a
-    # read conflict on started, but atomic add will still have the effect we
-    # want
     _increment(tr, ensemble_id, "started")
+    if claimed_shard is not None:
+        tr[
+            dir_ensemble_incomplete[ensemble_id][seed][CLAIM_SHARD_PROPERTY]
+        ] = fdb.tuple.pack((claimed_shard,))
 
     tr[dir_ensemble_incomplete[ensemble_id][seed]] = instanceid
     current_time = time.time()
