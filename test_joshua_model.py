@@ -586,6 +586,34 @@ def test_legacy_claims_keep_exact_max_runs(empty_ensemble):
         joshua_model.delete_ensemble(ensemble_id)
 
 
+def test_reclaims_expired_run_without_scanning_all_heartbeats(
+    monkeypatch, empty_ensemble
+):
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 2}, open(empty_ensemble, "rb")
+    )
+    assert joshua_model.try_starting_test(ensemble_id, 12345)
+    assert joshua_model.try_starting_test(ensemble_id, 12346)
+    assert get_started(joshua_model.db) == 2
+
+    def heartbeats(_ensemble_id, _tr):
+        yield 12345, time.time() - 11
+        raise AssertionError("scanned past the first expired heartbeat")
+
+    monkeypatch.setattr(joshua_model, "_get_seeds_and_heartbeats", heartbeats)
+
+    assert joshua_model.should_run_ensemble(ensemble_id)
+    assert get_started(joshua_model.db) == 1
+    assert {
+        run["seed"] for run in joshua_model.show_in_progress(ensemble_id)
+    } == {12346}
+    assert joshua_model.try_starting_test(ensemble_id, 12347)
+
+
 def test_two_ensembles_memory_usage(tmp_path, empty_ensemble):
     """
     :tmp_path: https://docs.pytest.org/en/stable/tmpdir.html

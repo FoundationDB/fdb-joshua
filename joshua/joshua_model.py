@@ -35,7 +35,7 @@ import zlib
 import boto3
 from collections import defaultdict
 from io import BytesIO
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import fdb
@@ -806,13 +806,11 @@ def _decrement_claim_shard(
 
 def _get_seeds_and_heartbeats(
     ensemble_id: str, tr: fdb.Transaction
-) -> List[Tuple[int, float]]:
-    result = []
+) -> Iterator[Tuple[int, float]]:
     for k, v in tr.snapshot[dir_ensemble_incomplete[ensemble_id]["heartbeat"].range()]:
         (seed,) = dir_ensemble_incomplete[ensemble_id]["heartbeat"].unpack(k)
         (heartbeat,) = fdb.tuple.unpack(v)
-        result.append((seed, heartbeat))
-    return result
+        yield seed, heartbeat
 
 
 def _get_hostname(ensemble_id: str, seed: int, tr: fdb.Transaction) -> Optional[str]:
@@ -844,26 +842,29 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
     # Check if we're approaching the limit to avoid overshooting
     if max_runs > 0 and started >= max_runs:
         current_time = time.time()
-        max_seed = None
-        max_heartbeat_age = None
+        dead_seed = None
+        saw_heartbeat = False
         for seed, heartbeat in _get_seeds_and_heartbeats(ensemble_id, tr):
             assert type(seed) == int
-            if max_seed is None or current_time - heartbeat > max_heartbeat_age:
-                max_seed = seed
-                max_heartbeat_age = current_time - heartbeat
-        if max_heartbeat_age is None:
+            saw_heartbeat = True
+            if current_time - heartbeat > 10:
+                # Reclaiming any expired run frees one slot. Do not scan every
+                # heartbeat in a large ensemble just to find the oldest one.
+                dead_seed = seed
+                break
+        if not saw_heartbeat:
             # No other agents are running a test for this ensemble (is this possible?)
             return True
-        if max_heartbeat_age > 10:
+        if dead_seed is not None:
             print(
                 "Agent {} presumed dead. Attempting to steal its work.".format(
-                    _get_hostname(ensemble_id, max_seed, tr)
+                    _get_hostname(ensemble_id, dead_seed, tr)
                 )
             )
 
             _decrement(tr, ensemble_id, "started")
             claim_shard = tr[
-                dir_ensemble_incomplete[ensemble_id][max_seed][
+                dir_ensemble_incomplete[ensemble_id][dead_seed][
                     CLAIM_SHARD_PROPERTY
                 ]
             ]
@@ -874,11 +875,11 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
             # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
             # We only want one agent to succeed in taking over for the dead agent's run/seed.
             tr.add_read_conflict_key(
-                dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]
+                dir_ensemble_incomplete[ensemble_id]["heartbeat"][dead_seed]
             )
-            del tr[dir_ensemble_incomplete[ensemble_id][max_seed]]
-            del tr[dir_ensemble_incomplete[ensemble_id][max_seed].range()]
-            del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][max_seed]]
+            del tr[dir_ensemble_incomplete[ensemble_id][dead_seed]]
+            del tr[dir_ensemble_incomplete[ensemble_id][dead_seed].range()]
+            del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][dead_seed]]
             return True
         return False
     else:
