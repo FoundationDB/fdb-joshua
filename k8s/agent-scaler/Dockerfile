@@ -63,11 +63,12 @@ RUN set -eux && \
     rpm -i foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm --excludepath=/usr/bin --excludepath=/usr/lib/foundationdb/backup_agent && \
     rm foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm.sha256
 
+ENV FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=/usr/lib/fdb
 # Install multi-version libraries to allow FDB joshua to connect to clusters with a different version
 RUN mkdir -p /usr/lib/fdb && \
     for version in "${FDB_VERSION}" "7.3.79" "7.4.7"; \
     do \
-        curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o "/usr/lib/fdb/libfdb_c_${version%.*}.so"; \
+        curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o "${FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY}/libfdb_c_${version%.*}.so"; \
     done
 
 # FDB python binding
@@ -83,7 +84,6 @@ ENV CHECK_DELAY=10
 ENV AGENT_TAG=${AGENT_TAG}
 ENV NAMESPACE=joshua
 ENV AGENT_NAME=joshua-agent
-ENV FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=/usr/lib/fdb
 
 # Entry point
 ENTRYPOINT /tools/agent-scaler.sh

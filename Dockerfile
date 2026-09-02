@@ -97,11 +97,12 @@ RUN set -eux && \
     rpm -i foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm --excludepath=/usr/bin --excludepath=/usr/lib/foundationdb/backup_agent && \
     rm foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm.sha256
 
+ENV FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=/usr/lib/fdb
 # Install multi-version libraries to allow FDB joshua to connect to clusters with a different version
 RUN mkdir -p /usr/lib/fdb && \
     for version in "${FDB_VERSION}" "7.3.79" "7.4.7"; \
     do \
-        curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o "/usr/lib/fdb/libfdb_c_${version%.*}.so"; \
+        curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o "${FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY}/libfdb_c_${version%.*}.so"; \
     done
 
 ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
@@ -111,7 +112,6 @@ ENV AGENT_TIMEOUT=900
 # because of thundering-herd of thousands of agents doing joshua_model.try_running_test()
 ENV TRANSACTION_TIMEOUT_MS=256000
 ENV TRANSACTION_RETRY_LIMIT=1000
-ENV FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=/usr/lib/fdb
 
 USER joshua
 CMD python3 -m joshua.joshua_agent \
