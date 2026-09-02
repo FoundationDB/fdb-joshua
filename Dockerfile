@@ -98,9 +98,10 @@ RUN set -eux && \
     rm foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm.sha256
 
 # Install multi-version libraries to allow FDB joshua to connect to clusters with a different version
-RUN for version in "${FDB_VERSION}" "7.3.79" "7.4.7"; \
+RUN mkdir -p /usr/lib/fdb && \
+    for version in "${FDB_VERSION}" "7.3.79" "7.4.7"; \
     do \
-        curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o "/usr/lib64/libfdb_c_${version%.*}.so"; \
+        curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o "/usr/lib/fdb/libfdb_c_${version%.*}.so"; \
     done
 
 ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
