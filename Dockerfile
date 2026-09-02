@@ -1,6 +1,6 @@
-FROM rockylinux/rockylinux:9.7
+FROM rockylinux/rockylinux:9.8
 # This is joshua-agent
-
+ARG TARGETARCH
 WORKDIR /tmp
 
 # Currently Python 3.13 is used as the default python version 3.9 is EOL:
@@ -56,18 +56,52 @@ RUN ARTIFACT=client python3 -m pip install /opt/joshua/install && \
 # install old fdbserver binaries and libfdb_c.so
 # just enough for foundationdb/tests/restarting/* for branches: release-7.3 release-7.4 main
 ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
-ARG FDB_VERSION="7.1.57"
 # This image only works for x86_64 ...
-RUN if [ "$(uname -p)" == "x86_64" ]; then \
+RUN if [ "${TARGETARCH}" = "amd64" ]; then \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
         for old_fdb_server_version in 7.4.5 7.3.69 7.3.43 7.1.61 7.1.19 6.3.18; do \
             curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o ${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version}; \
         done && \
-        chmod +x ${OLD_FDB_BINARY_DIR}/* && \
-        curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o /usr/lib64/libfdb_c_${FDB_VERSION}.so && \
-        ln -s /usr/lib64/libfdb_c_${FDB_VERSION}.so /usr/lib64/libfdb_c.so; \
+        chmod +x ${OLD_FDB_BINARY_DIR}/* ; \
     fi
+
+ARG FDB_VERSION="7.1.57"
+# Install primary FDB version.
+# Note: The agent doesn't support arm64 right now because the old versions are only available in x64, see above.
+RUN set -eux && \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+         FDB_ARCH=x86_64; \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
+         FDB_ARCH=aarch64; \
+         if [ "${FDB_VERSION%.*}" = "7.1" ]; then \
+            FDB_VERSION="7.3.79"; \
+         fi; \
+    else \
+         echo "ERROR: unsupported architecture ${TARGETARCH}" 1>&2; \
+         exit 1; \
+    fi; \
+    if [ "${FDB_VERSION%.*}" = "7.1" ]; then \
+         # FDB 7.1 published the client packages for el7, 7.3 and newer uses el9.
+         FDB_OS=el7; \
+    else \
+         FDB_OS=el9; \
+    fi; \
+    curl --fail -L "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm" -o foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm && \
+    curl --fail -L "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm.sha256" -o foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm.sha256 && \
+    # Disable buggy mirrors for RockyLinux.
+    sed -i.bak 's/^#baseurl=/baseurl=/; s/^mirrorlist=/#mirrorlist=/' /etc/yum.repos.d/rocky.repo && \
+    dnf install --disablerepo=* --enablerepo=baseos --enablerepo=appstream -y glibc pkg-config bind-utils && \
+    dnf clean all && \
+    sha256sum -c foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm.sha256 && \
+    rpm -i foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm --excludepath=/usr/bin --excludepath=/usr/lib/foundationdb/backup_agent && \
+    rm foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm foundationdb-clients-${FDB_VERSION}-1.${FDB_OS}.${FDB_ARCH}.rpm.sha256
+
+# Install multi-version libraries to allow FDB joshua to connect to clusters with a different version
+RUN for version in "${FDB_VERSION}" "7.3.79" "7.4.7"; \
+    do \
+        curl -Ls https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/libfdb_c.x86_64.so -o "/usr/lib64/libfdb_c_${version%.*}.so"; \
+    done
 
 ENV FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 ENV AGENT_TIMEOUT=900
@@ -76,6 +110,7 @@ ENV AGENT_TIMEOUT=900
 # because of thundering-herd of thousands of agents doing joshua_model.try_running_test()
 ENV TRANSACTION_TIMEOUT_MS=256000
 ENV TRANSACTION_RETRY_LIMIT=1000
+ENV FDB_NETWORK_OPTION_EXTERNAL_CLIENT_DIRECTORY=/usr/lib/fdb
 
 USER joshua
 CMD python3 -m joshua.joshua_agent \
