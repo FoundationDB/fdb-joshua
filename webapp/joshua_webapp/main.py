@@ -59,9 +59,9 @@ class UploadJobForm(FlaskForm):
         properties = {
             'priority': self.priority.data,
             'timeout': self.timeout.data,
-            'allow_multiple': allow_multiple,
-            'no_max_runs': no_max_runs,
-            'no_fail_fast': no_fail_fast,
+            'allow_multiple': self.allow_multiple,
+            'no_max_runs': self.no_max_runs,
+            'no_fail_fast': self.no_fail_fast,
             'username': self.username.data,
             'sanity': self.sanity.data,
             'compressed': True
