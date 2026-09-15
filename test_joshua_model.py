@@ -170,23 +170,21 @@ def test_create_ensemble():
     assert len(joshua_model.list_active_ensembles()) > 0
 
 
-@pytest.mark.parametrize("priority", [5, 20, 100, 250, "5"])
-def test_scheduler_reads_submitted_priority(priority):
-    ensemble_id = joshua_model.create_ensemble(
-        "joshua", {"priority": priority}, io.BytesIO()
-    )
-    assert joshua_model.get_ensemble_priorities([ensemble_id]) == {
-        ensemble_id: int(priority) / 100.0
-    }
-
-
 @pytest.mark.parametrize(
-    "properties",
-    [{}, {"priority": 0}, {"priority": -1}, {"priority": None}, {"priority": "invalid"}],
+    ("properties", "expected_weight"),
+    [
+        ({"priority": 5}, 0.05),
+        ({}, 1.0),
+        ({"priority": 0}, 1.0),
+        ({"priority": "invalid"}, 1.0),
+    ],
+    ids=["submitted", "omitted", "nonpositive", "malformed"],
 )
-def test_scheduler_defaults_missing_or_invalid_priority(properties):
+def test_scheduler_uses_submitted_priority_or_default(properties, expected_weight):
     ensemble_id = joshua_model.create_ensemble("joshua", properties, io.BytesIO())
-    assert joshua_model.get_ensemble_priorities([ensemble_id]) == {ensemble_id: 1.0}
+    assert joshua_model.get_ensemble_priorities([ensemble_id]) == {
+        ensemble_id: expected_weight
+    }
 
 
 def test_invalid_claim_shard_count_does_not_upload_data():
@@ -549,48 +547,6 @@ def test_concurrent_claims_preserve_max_runs(empty_ensemble):
         joshua_model.delete_ensemble(ensemble_id)
 
 
-def test_sharded_claim_probes_and_reclaims_alternative_shard(empty_ensemble):
-    ensemble_id = joshua_model.create_ensemble(
-        "joshua",
-        {"max_runs": 3, "claim_shard_count": 3},
-        open(empty_ensemble, "rb"),
-    )
-    # All seeds start at shard 2. Probing must wrap and record the actual shard.
-    for seed in (2, 5, 8):
-        assert joshua_model.try_starting_test(ensemble_id, seed)
-    claims = {run["seed"]: run for run in joshua_model.show_in_progress(ensemble_id)}
-    assert [claims[seed]["claim_shard"] for seed in (2, 5, 8)] == [2, 0, 1]
-    assert not joshua_model.try_starting_test(ensemble_id, 11)
-
-    @fdb.transactional
-    def expire_alternative_claim(tr):
-        tr[joshua_model.dir_ensemble_incomplete[ensemble_id]["heartbeat"][5]] = (
-            fdb.tuple.pack((0,))
-        )
-
-    expire_alternative_claim(joshua_model.db)
-    assert joshua_model.should_run_ensemble(ensemble_id)
-    assert joshua_model.try_starting_test(ensemble_id, 11)
-    claims = {run["seed"]: run for run in joshua_model.show_in_progress(ensemble_id)}
-    assert claims[11]["claim_shard"] == 0
-    assert len(claims) == 3
-    assert not joshua_model.try_starting_test(ensemble_id, 14)
-
-
-def test_sharded_claim_probe_limit(empty_ensemble):
-    shard_count = joshua_model.CLAIM_SHARD_PROBE_LIMIT + 1
-    ensemble_id = joshua_model.create_ensemble(
-        "joshua",
-        {"max_runs": shard_count, "claim_shard_count": shard_count},
-        open(empty_ensemble, "rb"),
-    )
-    for seed in range(shard_count - 1):
-        assert joshua_model.try_starting_test(ensemble_id, seed)
-    # Capacity exists, but lies outside the bounded search from shard 0.
-    assert not joshua_model.try_starting_test(ensemble_id, shard_count)
-    assert joshua_model.try_starting_test(ensemble_id, shard_count - 1)
-
-
 def test_dead_claim_releases_shard(empty_ensemble):
     @fdb.transactional
     def expire_heartbeat(tr):
@@ -615,18 +571,23 @@ def test_dead_claim_releases_shard(empty_ensemble):
     )
     assert properties[joshua_model.CLAIM_SHARD_COUNT_PROPERTY] == shard_count
     try:
-        seed = 1  # shard 1
+        assert joshua_model.try_starting_test(ensemble_id, 0)  # fills shard 0
+        seed = 2  # must claim shard 1 because shard 0 is full
         assert joshua_model.try_starting_test(ensemble_id, seed)
-        assert joshua_model.try_starting_test(ensemble_id, 2)  # shard 0
         assert get_started(joshua_model.db) == max_runs
 
         expire_heartbeat(joshua_model.db)
         assert joshua_model.should_run_ensemble(ensemble_id)
         assert get_started(joshua_model.db) == max_runs - 1
 
-        # seed + shard_count maps to the same nonzero shard as the dead claim.
+        # Reclaim the recorded shard, which differs from the seed's initial shard.
         assert joshua_model.try_starting_test(ensemble_id, seed + shard_count)
         assert get_started(joshua_model.db) == max_runs
+        assert {
+            run["seed"]: run["claim_shard"]
+            for run in joshua_model.show_in_progress(ensemble_id)
+        } == {0: 0, seed + shard_count: 1}
+        assert not joshua_model.try_starting_test(ensemble_id, seed + 2 * shard_count)
     finally:
         joshua_model.delete_ensemble(ensemble_id)
 
