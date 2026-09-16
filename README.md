@@ -61,10 +61,11 @@ commands):
 python3 -m joshua.joshua start --tarball path/to/archive.tar.gz
 ```
 
-Use `--priority` to set an ensemble's relative share of worker time. The
-default is `100`; background work can use `--priority 5` to yield to normal
-ensembles while still using idle workers. Agents apply this weight between
-tests, so it does not preempt running tests or reserve a fixed worker count.
+Use `--priority` to set an ensemble's relative share of worker time, from `1`
+through `200` (inclusive). The default is `100`; background work can use
+`--priority 5` to yield to normal ensembles while still using idle workers.
+Agents apply this weight between tests, so it does not preempt running tests or
+reserve a fixed worker count.
 
 Large ensembles can opt into sharded test admission after every agent that can
 claim from them has been upgraded to a version that supports it:

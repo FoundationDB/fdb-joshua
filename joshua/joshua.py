@@ -553,7 +553,7 @@ if __name__ == "__main__":
         type=int,
         metavar="PRIORITY",
         default=100,
-        help="percent adjustment of CPU time allocated to this job",
+        help="percent adjustment of CPU time allocated to this job (1-200, default: 100)",
     )
     parser_start.add_argument(
         "--env",
@@ -717,6 +717,9 @@ if __name__ == "__main__":
     if "cmd" not in arguments:
         parser.print_usage()
         exit(-1)
+
+    if arguments.cmd == start_ensemble and not 1 <= arguments.priority <= 200:
+        parser_start.error("--priority must be between 1 and 200")
 
     joshua_model.open(arguments.cluster_file, dir_path=arguments.dir_path)
     # Running everything (esp ctypes blocking calls) in a thread
