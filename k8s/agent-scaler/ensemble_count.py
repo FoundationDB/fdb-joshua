@@ -38,7 +38,9 @@ def queue_size():
             max_runs = props["max_runs"]
         if "ended" in props:
             ended = props["ended"]
-        if max_runs - ended >= 0:
+        if max_runs == 0: # no_max_runs
+            desired_count += 1
+        elif max_runs - ended >= 0:
             desired_count += max_runs - ended
     print(desired_count, end="")
 
