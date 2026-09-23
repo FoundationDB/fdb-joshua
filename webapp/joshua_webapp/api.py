@@ -114,7 +114,7 @@ def upload_ensemble():
         file.seek(0, os.SEEK_SET)
         properties['data_size'] = size
         ensemble_id = joshua_model.create_ensemble(properties['username'],
-                                                   properties, file, False)
+                                                   properties, file, properties['sanity'])
         app.logger.info('Ensemble {} created with properties: {}'.format(
             ensemble_id, properties))
     # Delete the file
