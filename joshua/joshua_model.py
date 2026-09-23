@@ -51,6 +51,7 @@ FDBError = fdb.FDBError
 ONE = b"\x01" + b"\x00" * 7
 TIMESTAMP_FMT = "%Y%m%d-%H%M%S"
 CLAIM_SHARD_MAX = 10000
+CLAIM_SHARD_PROBE_LIMIT = 8
 CLAIM_SHARD_COUNT_PROPERTY = "claim_shard_count"
 CLAIM_SHARD_PROPERTY = "claim_shard"
 
@@ -379,8 +380,11 @@ def get_ensemble_priorities(tr, ensembles=None):
 
     priority_map = {}
     for ensemble in ensembles:
-        priority = _get_snap_counter(tr, ensemble, "priority")
-        if priority == 0:
+        try:
+            priority = int(_get_property(tr.snapshot, ensemble, "priority", 100))
+        except (TypeError, ValueError, OverflowError):
+            priority = 100
+        if priority <= 0:
             priority = 100
         priority_map[ensemble] = priority / float(100)
 
@@ -930,16 +934,22 @@ def try_starting_test(tr, ensemble_id, seed, sanity=False) -> bool:
             # The aggregate started counter remains useful for status and for
             # a cheap fast-fail after all shards are full, but it is only read
             # at snapshot isolation here. The serializable admission check is
-            # isolated to one shard so concurrent agents do not all conflict
-            # on count/started.
+            # limited to the probed shards so concurrent agents do not all
+            # conflict on count/started.
             if _get_snap_counter(tr, ensemble_id, "started") >= max_runs:
                 return False
-            shard = _claim_shard(seed, claim_shard_count)
-            shard_limit = _claim_shard_limit(max_runs, shard, claim_shard_count)
-            if _get_claim_shard_counter(tr, ensemble_id, shard) >= shard_limit:
+            first_shard = _claim_shard(seed, claim_shard_count)
+            # A nearly complete ensemble can have capacity in only a few shards.
+            # Bound the search without discarding this ensemble after one miss.
+            for offset in range(min(claim_shard_count, CLAIM_SHARD_PROBE_LIMIT)):
+                shard = (first_shard + offset) % claim_shard_count
+                shard_limit = _claim_shard_limit(max_runs, shard, claim_shard_count)
+                if _get_claim_shard_counter(tr, ensemble_id, shard) < shard_limit:
+                    _increment_claim_shard(tr, ensemble_id, shard)
+                    claimed_shard = shard
+                    break
+            if claimed_shard is None:
                 return False
-            _increment_claim_shard(tr, ensemble_id, shard)
-            claimed_shard = shard
         elif _get_counter(tr, ensemble_id, "started") >= max_runs:
             # Ensembles created before claim sharding keep the old exact
             # admission behavior.

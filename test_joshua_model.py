@@ -170,6 +170,23 @@ def test_create_ensemble():
     assert len(joshua_model.list_active_ensembles()) > 0
 
 
+@pytest.mark.parametrize(
+    ("properties", "expected_weight"),
+    [
+        ({"priority": 5}, 0.05),
+        ({}, 1.0),
+        ({"priority": 0}, 1.0),
+        ({"priority": "invalid"}, 1.0),
+    ],
+    ids=["submitted", "omitted", "nonpositive", "malformed"],
+)
+def test_scheduler_uses_submitted_priority_or_default(properties, expected_weight):
+    ensemble_id = joshua_model.create_ensemble("joshua", properties, io.BytesIO())
+    assert joshua_model.get_ensemble_priorities([ensemble_id]) == {
+        ensemble_id: expected_weight
+    }
+
+
 def test_invalid_claim_shard_count_does_not_upload_data():
     @fdb.transactional
     def get_ensemble_data_keys(tr):
@@ -554,18 +571,23 @@ def test_dead_claim_releases_shard(empty_ensemble):
     )
     assert properties[joshua_model.CLAIM_SHARD_COUNT_PROPERTY] == shard_count
     try:
-        seed = 1  # shard 1
+        assert joshua_model.try_starting_test(ensemble_id, 0)  # fills shard 0
+        seed = 2  # must claim shard 1 because shard 0 is full
         assert joshua_model.try_starting_test(ensemble_id, seed)
-        assert joshua_model.try_starting_test(ensemble_id, 2)  # shard 0
         assert get_started(joshua_model.db) == max_runs
 
         expire_heartbeat(joshua_model.db)
         assert joshua_model.should_run_ensemble(ensemble_id)
         assert get_started(joshua_model.db) == max_runs - 1
 
-        # seed + shard_count maps to the same nonzero shard as the dead claim.
+        # Reclaim the recorded shard, which differs from the seed's initial shard.
         assert joshua_model.try_starting_test(ensemble_id, seed + shard_count)
         assert get_started(joshua_model.db) == max_runs
+        assert {
+            run["seed"]: run["claim_shard"]
+            for run in joshua_model.show_in_progress(ensemble_id)
+        } == {0: 0, seed + shard_count: 1}
+        assert not joshua_model.try_starting_test(ensemble_id, seed + 2 * shard_count)
     finally:
         joshua_model.delete_ensemble(ensemble_id)
 
