@@ -72,7 +72,7 @@ class UploadJobForm(FlaskForm):
         else:
             properties['no_max_runs'] = True
         # Process the max number of failures
-        if self.max_runs.fail_fast.data > 0 and not self.no_fail_fast.data:
+        if self.fail_fast.data > 0 and not self.no_fail_fast.data:
             properties['fail_fast'] = self.fail_fast.data
         else:
             properties['no_fail_fast'] = True
@@ -201,8 +201,8 @@ def upload():
             tarfile.seek(0, os.SEEK_SET)
             properties['data_size'] = size
 
-        ensemble_id = joshua_model.create_ensemble(properties['username'],
-                                                   properties, tarfile, properties['sanity'])
+            ensemble_id = joshua_model.create_ensemble(properties['username'],
+                                                       properties, tarfile, properties['sanity'])
         app.logger.info('Ensemble {} created with properties: {}!'.format(
             ensemble_id, properties))
         flash(f'Ensemble {ensemble_id} created!')
