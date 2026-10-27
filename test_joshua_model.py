@@ -547,6 +547,45 @@ def test_concurrent_claims_preserve_max_runs(empty_ensemble):
         joshua_model.delete_ensemble(ensemble_id)
 
 
+def test_scheduler_retires_concurrently_completed_ensemble(monkeypatch, empty_ensemble):
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 2}, open(empty_ensemble, "rb")
+    )
+    for seed in range(2):
+        assert joshua_model.try_starting_test(ensemble_id, seed)
+
+    transactions = [joshua_model.db.create_transaction() for _ in range(2)]
+    # Keep both completions at the same read version, before either commits
+    read_version = transactions[0].get_read_version().wait()
+    transactions[1].set_read_version(read_version)
+    for seed, tr in enumerate(transactions):
+        with monkeypatch.context() as patch:
+            patch.setattr(joshua_model, "db", tr)
+            joshua_model.insert_results(
+                ensemble_id, seed, seed, b"result", compress=False, max_runs=2
+            )
+    for tr in transactions:
+        tr.commit().wait()
+
+    properties = joshua_model.get_ensemble_properties(ensemble_id)
+    assert properties["ended"] == 2
+    assert properties["pass"] == properties["fail"] == 1
+    assert [eid for eid, _ in joshua_model.list_active_ensembles()] == [ensemble_id]
+
+    assert not joshua_model.should_run_ensemble(ensemble_id)
+    assert joshua_model.list_active_ensembles() == []
+    assert joshua_model.show_in_progress(ensemble_id) == []
+    properties = joshua_model.get_ensemble_properties(ensemble_id)
+    assert "stopped" in properties
+    assert "runtime" in properties
+
+    # Other agents may still have this ensemble in their cached active list
+    changes = joshua_model.db[joshua_model.dir_active_changes]
+    assert not joshua_model.should_run_ensemble(ensemble_id)
+    assert joshua_model.get_ensemble_properties(ensemble_id) == properties
+    assert joshua_model.db[joshua_model.dir_active_changes] == changes
+
+
 def test_dead_claim_releases_shard(empty_ensemble):
     @fdb.transactional
     def expire_heartbeat(tr):
