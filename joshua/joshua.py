@@ -164,20 +164,12 @@ def stop_ensemble(ensemble=None, username=None, sanity=False, printable=True, **
         # Stop all active ensembles for the given username
         if not username:
             username = get_username()
-        if printable:
-            ensemble_list = (
-                joshua_model.list_sanity_ensembles()
-                if sanity
-                else joshua_model.list_active_ensembles()
-            )
-        else:
-            ensemble_list = get_active_ensembles(False, sanity, username)
-
-        for e, props in ensemble_list:
-            if "-" + username + "-" in str(e):
-                if printable:
-                    print("Stopping ensemble", e, flush=True)
-                joshua_model.stop_ensemble(e, sanity)
+        if not username:
+            raise Exception("Unable to stop ensembles belonging to unspecified user.")
+        for e, _ in get_active_ensembles(False, sanity, username):
+            if printable:
+                print("Stopping ensemble", e, flush=True)
+            joshua_model.stop_ensemble(e, sanity)
 
 
 def default_ensemble(sanity=False, **args):

@@ -562,9 +562,8 @@ def stop_user_ensembles(username, sanity=False):
     if not username:
         raise Exception("Unable to stop ensembles belonging to unspecified user.")
     ensemble_list = get_active_ensembles(False, sanity, username)
-    for e, props in ensemble_list:
-        if "-" + username + "-" in str(e):
-            stop_ensemble(e, sanity)
+    for e, _ in ensemble_list:
+        stop_ensemble(e, sanity)
 
 
 def get_active_ensembles(

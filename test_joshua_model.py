@@ -170,6 +170,29 @@ def test_create_ensemble():
     assert len(joshua_model.list_active_ensembles()) > 0
 
 
+@pytest.mark.parametrize("stop", ["cli", "quiet-cli", "model"])
+def testStopEnsemblesByStoredOwner(stop, monkeypatch):
+    owned = joshua_model.create_ensemble("custom-id", {"username": "alice"}, io.BytesIO())
+    other = joshua_model.create_ensemble("alice", {"username": "bob"}, io.BytesIO())
+
+    monkeypatch.setenv("JOSHUA_USER", "")
+    with pytest.raises(Exception, match="unspecified user"):
+        if stop == "model":
+            joshua_model.stop_user_ensembles("")
+        else:
+            joshua.stop_ensemble(printable=stop == "cli")
+    assert {name for name, _ in joshua_model.list_active_ensembles()} == {owned, other}
+
+    if stop == "model":
+        joshua_model.stop_user_ensembles("alice")
+    else:
+        joshua.stop_ensemble(username="alice", printable=stop == "cli")
+
+    assert [name for name, _ in joshua_model.list_active_ensembles()] == [other]
+    assert "stopped" in joshua_model.get_ensemble_properties(owned)
+    assert "stopped" not in joshua_model.get_ensemble_properties(other)
+
+
 @pytest.mark.parametrize(
     ("properties", "expected_weight"),
     [
