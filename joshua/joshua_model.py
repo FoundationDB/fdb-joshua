@@ -530,7 +530,8 @@ def _get_remote_tarball_hash(tarball, properties):
     raise ValueError("Unsupported remote tarball URL: " + tarball)
 
 
-def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+def prepare_ensemble(userid, properties, tarball, use_remote=False):
+    """Upload ensemble data and populate properties without activating the ensemble."""
     # Validate and normalize before fetching or uploading the tarball. A bad
     # claim_shard_count should not leave unreferenced ensemble data behind.
     _normalize_claim_shard_properties(properties)
@@ -549,6 +550,11 @@ def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False)
         properties["submitted"] = timestamp
     if not use_remote:
         _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
+    return ensemble_id
+
+
+def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+    ensemble_id = prepare_ensemble(userid, properties, tarball, use_remote)
     _create_ensemble(db, ensemble_id, properties, sanity)
     logger.debug(
         "created ensemble {}, properties: {}, sanity: {}".format(
