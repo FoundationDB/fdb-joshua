@@ -770,9 +770,12 @@ def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
             },)
         agent.start()
         agents.append(agent)
-    # wait for agents to finish
+    deadline = time.time() + 120
     for agent in agents:
-        agent.join()
+        while agent.is_alive():
+            assert time.time() < deadline, "agents did not exit"
+            joshua_model.stop_completed_ensembles()
+            agent.join(0.5)
     verify_application_state(joshua_model.db, ensemble_id, max_runs)
     joshua_model.delete_ensemble(ensemble_id)
     verify_application_state_deleted(joshua_model.db, ensemble_id)
