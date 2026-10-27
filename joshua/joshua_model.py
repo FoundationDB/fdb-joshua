@@ -530,7 +530,8 @@ def _get_remote_tarball_hash(tarball, properties):
     raise ValueError("Unsupported remote tarball URL: " + tarball)
 
 
-def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+def prepare_ensemble(userid, properties, tarball, use_remote=False):
+    """Upload ensemble data and populate properties without activating the ensemble."""
     # Validate and normalize before fetching or uploading the tarball. A bad
     # claim_shard_count should not leave unreferenced ensemble data behind.
     _normalize_claim_shard_properties(properties)
@@ -549,6 +550,11 @@ def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False)
         properties["submitted"] = timestamp
     if not use_remote:
         _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
+    return ensemble_id
+
+
+def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+    ensemble_id = prepare_ensemble(userid, properties, tarball, use_remote)
     _create_ensemble(db, ensemble_id, properties, sanity)
     logger.debug(
         "created ensemble {}, properties: {}, sanity: {}".format(
@@ -624,16 +630,10 @@ def _stop_ensemble(tr, ensemble_id, sanity=False):
     if tr[dir[ensemble_id]] is not None:
         # Get the current time
         stoptime = datetime.datetime.now(datetime.timezone.utc)
-        # Get the ensemble properties
-        properties = get_ensemble_properties(ensemble_id)
-        # Get the ensemble submission time, if not defined use now
+        submitted_value = tr[dir_all_ensembles[ensemble_id]["properties"]["submitted"]]
         submitted = (
-            load_datetime(
-                fdb.tuple.unpack(
-                    tr[dir_all_ensembles[ensemble_id]["properties"]["submitted"]]
-                )[0]
-            )
-            if "submitted" in properties
+            load_datetime(fdb.tuple.unpack(submitted_value)[0])
+            if submitted_value.present()
             else stoptime
         )
 
