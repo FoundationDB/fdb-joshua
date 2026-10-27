@@ -183,6 +183,22 @@ def testPreparedEnsembleIsInvisibleUntilActivated():
     assert [name for name, _ in joshua_model.list_active_ensembles()] == [ensemble]
 
 
+def testCreateAndStopInOneTransaction():
+    properties = {"submitted": "20000101-000000"}
+    ensemble = joshua_model.prepare_ensemble("joshua", properties, io.BytesIO())
+
+    @fdb.transactional
+    def createAndStop(tr):
+        joshua_model._create_ensemble(tr, ensemble, properties)
+        joshua_model._stop_ensemble(tr, ensemble)
+
+    createAndStop(joshua_model.db)
+    assert joshua_model.list_active_ensembles() == []
+    stopped = joshua_model.get_ensemble_properties(ensemble)
+    expected_runtime = joshua_model.load_datetime(stopped["stopped"]) - joshua_model.load_datetime(properties["submitted"])
+    assert joshua_model.load_timedelta(stopped["runtime"]) == expected_runtime
+
+
 @pytest.mark.parametrize(
     ("properties", "expected_weight"),
     [

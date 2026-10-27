@@ -630,16 +630,10 @@ def _stop_ensemble(tr, ensemble_id, sanity=False):
     if tr[dir[ensemble_id]] is not None:
         # Get the current time
         stoptime = datetime.datetime.now(datetime.timezone.utc)
-        # Get the ensemble properties
-        properties = get_ensemble_properties(ensemble_id)
-        # Get the ensemble submission time, if not defined use now
+        submitted_value = tr[dir_all_ensembles[ensemble_id]["properties"]["submitted"]]
         submitted = (
-            load_datetime(
-                fdb.tuple.unpack(
-                    tr[dir_all_ensembles[ensemble_id]["properties"]["submitted"]]
-                )[0]
-            )
-            if "submitted" in properties
+            load_datetime(fdb.tuple.unpack(submitted_value)[0])
+            if submitted_value.present()
             else stoptime
         )
 
