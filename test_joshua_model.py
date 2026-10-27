@@ -170,6 +170,19 @@ def test_create_ensemble():
     assert len(joshua_model.list_active_ensembles()) > 0
 
 
+def testPreparedEnsembleIsInvisibleUntilActivated():
+    properties = {}
+    contents = b"prepared ensemble data"
+    ensemble = joshua_model.prepare_ensemble("joshua", properties, io.BytesIO(contents))
+    assert joshua_model.list_all_ensembles() == []
+    result = io.BytesIO()
+    joshua_model.get_ensemble_data(ensemble, result)
+    assert result.getvalue() == contents
+
+    joshua_model._create_ensemble(joshua_model.db, ensemble, properties)
+    assert [name for name, _ in joshua_model.list_active_ensembles()] == [ensemble]
+
+
 @pytest.mark.parametrize(
     ("properties", "expected_weight"),
     [
