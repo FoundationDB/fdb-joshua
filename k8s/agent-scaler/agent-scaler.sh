@@ -52,99 +52,32 @@ while true; do
     # Let the Kubernetes TTL controller own finished-job retention and cleanup
     # when enabled, instead of scanning every job in the namespace here.
     if [ "$use_k8s_ttl_controller" == false ] ; then
-    # Build list of Failed jobs to protect (retain for 1 day for debugging)
-    # These jobs should NOT be deleted by the normal cleanup below
-    declare -A protected_failed_jobs
-    current_epoch=$(date +%s)
-    
-    kubectl get jobs -n "${namespace}" -o json 2>/dev/null | \
-      jq -r '.items[] | select(.status.conditions[]? | select(.type=="Failed" and .status=="True")) | .metadata.name + " " + .metadata.creationTimestamp' | \
-      { grep -E "^${AGENT_NAME}-[0-9]+(-[0-9]+)?" || true; } | \
-      while read -r job_name job_timestamp; do
-          if [[ -n "$job_name" ]] && [[ -n "$job_timestamp" ]]; then
-              # Calculate if job is less than 1 day old (should be protected)
-              job_epoch=$(date -d "$job_timestamp" +%s 2>/dev/null)
-              if [[ -n "$job_epoch" ]]; then
-                  job_plus_1day_epoch=$((job_epoch + 86400))
-                  if [[ "$job_plus_1day_epoch" -ge "$current_epoch" ]]; then
-                      # Job is less than 1 day old - protect it
-                      echo "$job_name"
-                  fi
-              fi
-          fi
-      done > /tmp/protected_failed_jobs_${AGENT_NAME}.txt
-    
-    # Load protected jobs into associative array for fast lookup
-    while read -r job_name; do
-        if [[ -n "$job_name" ]]; then
-            protected_failed_jobs["$job_name"]=1
+        # Pod failures can be retried, and parallel Jobs may still have running pods.
+        if jobs_to_delete=$(
+            set -o pipefail
+            kubectl get jobs -n "${namespace}" -o json | \
+                jq -r --arg agent "${AGENT_NAME}" --argjson now "$(date +%s)" '
+                    .items[]
+                    | select(.metadata.name | startswith($agent + "-"))
+                    | select(.metadata.name | ltrimstr($agent + "-") | test("^[0-9]+(-[0-9]+)?$"))
+                    | select(
+                        any(.status.conditions[]?; .type == "Complete" and .status == "True")
+                        or (
+                            any(.status.conditions[]?; .type == "Failed" and .status == "True")
+                            and (.metadata.creationTimestamp | fromdateiso8601) < ($now - 86400)
+                        )
+                    )
+                    | .metadata.name
+                '
+        ); then
+            while IFS= read -r job; do
+                [ -z "$job" ] && continue
+                echo "Deleting terminal Job ${job}"
+                kubectl delete job "$job" -n "${namespace}" --ignore-not-found=true
+            done <<< "$jobs_to_delete"
+        else
+            echo "Failed to list terminal Jobs for ${AGENT_NAME}; skipping cleanup" >&2
         fi
-    done < /tmp/protected_failed_jobs_${AGENT_NAME}.txt 2>/dev/null
-    
-    protected_count=${#protected_failed_jobs[@]}
-    if [[ "$protected_count" -gt 0 ]]; then
-        echo "$(date -Iseconds) === Protecting ${protected_count} failed job(s) less than 1 day old === (AGENT_NAME: ${AGENT_NAME})"
-    fi
-
-      # cleanup finished jobs (status 1/1)
-      # Filter by AGENT_NAME and check 3rd column for "1/1" (completions)
-      for job in $(kubectl get jobs -n "${namespace}" --no-headers | { grep -E -e "^${AGENT_NAME}-[0-9]+(-[0-9]+)?\\s" || true; } | awk '$3 == "1/1" {print $1}'); do
-          # Skip if this job is a protected failed job
-          if [[ -n "${protected_failed_jobs[$job]:-}" ]]; then
-              echo "=== Skipping protected failed job: $job === (AGENT_NAME: ${AGENT_NAME})"
-              continue
-          fi
-          echo "$(date -Iseconds) === Job $job Completed (1/1) - deleting from get jobs === (AGENT_NAME: ${AGENT_NAME})"
-          kubectl delete job "$job" -n "${namespace}"
-      done
-
-      # cleanup failed/completed jobs by looking at pods for the current AGENT_NAME
-      # pod name is always prefixed with the job name
-      # e.g. "joshua-agent-XXXXXXXXXXXXXX-XX-yyyyy" or "joshua-rhel9-agent-XXXXXXXXXXXXXX-XX-yyyyy"
-      # Filter pods by AGENT_NAME first, then by status, then extract job prefix
-      # The number of fields to cut for the job prefix depends on the number of hyphens in AGENT_NAME itself, plus one for the timestamp part.
-      num_hyphen_fields_in_agent_name=$(echo "${AGENT_NAME}" | awk -F'-' '{print NF}')
-      job_prefix_fields=$((num_hyphen_fields_in_agent_name + 1))
-      for job_prefix_from_pod in $(kubectl get pods -n "${namespace}" --no-headers | { grep -E "^${AGENT_NAME}-[0-9]+(-[0-9]+)?-" || true; } | { grep -E -e "Completed" -e "Error" || true; } | cut -f 1-${job_prefix_fields} -d '-'); do
-          if [ -n "$job_prefix_from_pod" ]; then
-            # Validate that the derived job_prefix_from_pod actually matches the expected format for this agent's jobs
-            if [[ "${job_prefix_from_pod}" =~ ^${AGENT_NAME}-[0-9]+(-[0-9]+)?$ ]]; then
-              # Skip if this job is a protected failed job
-              if [[ -n "${protected_failed_jobs[$job_prefix_from_pod]:-}" ]]; then
-                  echo "=== Skipping protected failed job: $job_prefix_from_pod === (AGENT_NAME: ${AGENT_NAME})"
-                  continue
-              fi
-              echo "$(date -Iseconds) === Deleting Job based on pod status: $job_prefix_from_pod === (AGENT_NAME: ${AGENT_NAME})"
-              kubectl delete job "$job_prefix_from_pod" -n "${namespace}" --ignore-not-found=true
-            else
-              # This case can occur if AGENT_NAME is unusual (e.g., 'foo-bar' and a pod 'foo-bar-baz-TIMESTAMP-...' exists)
-              # or if the pod naming doesn't strictly follow AGENT_NAME-TIMESTAMP-SUFFIX.
-              # The initial grep on pods already ensures it starts with AGENT_NAME-TIMESTAMP_LIKE_PATTERN-,
-              # so this condition means the 'cut' command resulted in a prefix not matching AGENT_NAME-TIMESTAMP.
-              echo "=== WARNING: Pod for AGENT_NAME ${AGENT_NAME} yielded job prefix candidate '${job_prefix_from_pod}' that does not match expected pattern '^${AGENT_NAME}-[0-9]+(-[0-9]+)?$'. Skipping delete. ==="
-            fi
-          fi
-      done
-    # Cleanup Failed jobs that are older than 1 day (no longer need protection for debugging)
-    kubectl get jobs -n "${namespace}" -o json 2>/dev/null | \
-      jq -r '.items[] | select(.status.conditions[]? | select(.type=="Failed" and .status=="True")) | .metadata.name + " " + .metadata.creationTimestamp' | \
-      { grep -E "^${AGENT_NAME}-[0-9]+(-[0-9]+)?" || true; } | \
-      while read -r job_name job_timestamp; do
-          if [[ -n "$job_name" ]] && [[ -n "$job_timestamp" ]]; then
-              # Calculate if job is older than 1 day
-              job_epoch=$(date -d "$job_timestamp" +%s 2>/dev/null)
-              if [[ -n "$job_epoch" ]]; then
-                  job_plus_1day_epoch=$((job_epoch + 86400))
-                  if [[ "$job_plus_1day_epoch" -lt "$current_epoch" ]]; then
-                      echo "$(date -Iseconds) === Deleting 1-day old failed job: $job_name === (AGENT_NAME: ${AGENT_NAME})"
-                      kubectl delete job "$job_name" -n "${namespace}" --ignore-not-found=true
-                  fi
-              fi
-          fi
-      done
-    
-    # Clean up temp file
-    rm -f /tmp/protected_failed_jobs_${AGENT_NAME}.txt
     fi
 
     # Stop any ensembles that reached max_runs but weren't stopped due to
