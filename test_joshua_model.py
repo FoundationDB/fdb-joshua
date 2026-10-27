@@ -398,6 +398,38 @@ def test_agent(tmp_path, empty_ensemble):
     agent.join()
 
 
+def test_agent_timeout_with_all_runs_claimed(tmp_path, empty_ensemble):
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(empty_ensemble, "rb")
+    )
+    assert joshua_model.try_starting_test(ensemble_id, 12345)
+    assert not joshua_model.should_run_ensemble(ensemble_id)
+
+    stop_file = tmp_path / "stop"
+    errors = []
+
+    def run_agent():
+        try:
+            joshua_agent.agent(
+                work_dir=tmp_path, agent_timeout=1, stop_file=stop_file
+            )
+        except Exception as error:
+            errors.append(error)
+
+    agent = threading.Thread(target=run_agent, daemon=True)
+    agent.start()
+    try:
+        agent.join(timeout=5)
+        assert not errors
+        assert not agent.is_alive()
+        assert [eid for eid, _ in joshua_model.list_active_ensembles()] == [ensemble_id]
+        assert [run["seed"] for run in joshua_model.show_in_progress(ensemble_id)] == [12345]
+        assert joshua_model.get_ensemble_properties(ensemble_id).get("ended", 0) == 0
+    finally:
+        stop_file.touch()
+        agent.join(timeout=5)
+
+
 def test_stop_ensemble(tmp_path, empty_ensemble):
     """
     :tmp_path: https://docs.pytest.org/en/stable/tmpdir.html

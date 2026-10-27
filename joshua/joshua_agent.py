@@ -944,10 +944,15 @@ def agent(
                 ensembles_can_run = list(
                     filter(joshua_model.should_run_ensemble, ensembles)
                 )
+                now = time.time()
+                if agent_timeout is not None and (now - start) >= agent_timeout:
+                    if not agent_timeout_approaching:
+                        agent_timeout_approaching = True
+                        log(f"Agent timeout reached after {now - start:.1f} seconds - will exit gracefully after current job completes")
+                    break
+
                 if not ensembles_can_run:
-                    # All the ensembles have enough runs started for now. Don't
-                    # time the agent out, just wait until there are no
-                    # ensembles or the other agents might have died.
+                    # Keep idle agents available while other agents finish their runs
                     time.sleep(1)
                     continue
             else:
@@ -971,14 +976,6 @@ def agent(
                     continue
 
             assert ensembles_can_run
-
-            # Check if agent timeout is approaching - if so, finish gracefully
-            now = time.time()
-            if agent_timeout is not None and (now - start) >= agent_timeout:
-                if not agent_timeout_approaching:
-                    agent_timeout_approaching = True
-                    log(f"Agent timeout reached after {now - start:.1f} seconds - will exit gracefully after current job completes")
-                break
 
             # Warn when timeout is approaching (5 minutes before)
             if agent_timeout is not None and not agent_timeout_approaching and (now - start) >= (agent_timeout - 300):
