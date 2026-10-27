@@ -839,7 +839,9 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
     
     # max_runs == 0 means run forever
     if max_runs > 0 and completed >= max_runs:
-        # Ensemble has reached its completion target, no more work needed
+        # Concurrent result insertions can all miss the final count in snapshot reads
+        if tr[dir_active[ensemble_id]].present():
+            _stop_ensemble(tr, ensemble_id)
         return False
 
     # Check if we're approaching the limit to avoid overshooting
