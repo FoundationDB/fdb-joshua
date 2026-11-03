@@ -132,9 +132,10 @@ To run Joshua agent processes, we provide a Docker image that can spawn multiple
 agent processes. This docker image created by `build.sh` script,
 which uses `Dockerfile`.
 
-Note restarting tests need old `fdbserver` binaries and TLS libraries, which
-should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
-respectively.
+The amd64 agent image installs servers for restart tests in
+`/app/deploy/global_data/oldBinaries`. Tests that require an exact release
+can invoke `explicit/fdbserver-7.4.3` or `explicit/fdbserver-8.0.0` under
+that directory. The default FoundationDB harness scans only the top level.
 
 To start agents, run
 ```shell

@@ -67,6 +67,20 @@ RUN if [ "${TARGETARCH}" = "amd64" ]; then \
         chmod +x ${OLD_FDB_BINARY_DIR}/* ; \
     fi
 
+# Older test harnesses scan the top level and can select a server newer than the branch under test.
+RUN if [ "${TARGETARCH}" = "amd64" ]; then \
+        set -eu; \
+        mkdir -p "${OLD_FDB_BINARY_DIR}/explicit"; \
+        cd "${OLD_FDB_BINARY_DIR}/explicit"; \
+        for version in 7.4.3 8.0.0; do \
+            curl -fsSL --retry 5 "https://github.com/apple/foundationdb/releases/download/${version}/fdbserver.x86_64" -o "fdbserver-${version}"; \
+        done; \
+        printf '%s\n' \
+            'f2cb0712d33711f227c51a10bd40f620b4743b79ebe6895e2e6b6c92056ab0f4  fdbserver-7.4.3' \
+            '9ca9b1514650c3085eaf9a82f329d4dcc036a73ab2bb1fc9696ae2aa72033063  fdbserver-8.0.0' | sha256sum -c -; \
+        chmod 0755 fdbserver-7.4.3 fdbserver-8.0.0; \
+    fi
+
 ARG FDB_VERSION="7.1.57"
 # Install primary FDB version.
 # Note: The agent doesn't support arm64 right now because the old versions are only available in x64, see above.
