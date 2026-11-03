@@ -61,24 +61,10 @@ ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
 RUN if [ "${TARGETARCH}" = "amd64" ]; then \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
-        for old_fdb_server_version in 7.3.69 7.3.43 7.1.61 7.1.19 6.3.18; do \
-            curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o ${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version}; \
+        for old_fdb_server_version in 7.4.8 7.4.3 7.3.69 7.3.43 7.1.61 7.1.19 6.3.18; do \
+            curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o ${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version} || exit 1; \
         done && \
         chmod +x ${OLD_FDB_BINARY_DIR}/* ; \
-    fi
-
-# Older test harnesses scan the top level and can select a server newer than the branch under test.
-RUN if [ "${TARGETARCH}" = "amd64" ]; then \
-        set -eu; \
-        mkdir -p "${OLD_FDB_BINARY_DIR}/explicit"; \
-        cd "${OLD_FDB_BINARY_DIR}/explicit"; \
-        for version in 7.4.3 8.0.0; do \
-            curl -fsSL --retry 5 "https://github.com/apple/foundationdb/releases/download/${version}/fdbserver.x86_64" -o "fdbserver-${version}"; \
-        done; \
-        printf '%s\n' \
-            'f2cb0712d33711f227c51a10bd40f620b4743b79ebe6895e2e6b6c92056ab0f4  fdbserver-7.4.3' \
-            '9ca9b1514650c3085eaf9a82f329d4dcc036a73ab2bb1fc9696ae2aa72033063  fdbserver-8.0.0' | sha256sum -c -; \
-        chmod 0755 fdbserver-7.4.3 fdbserver-8.0.0; \
     fi
 
 ARG FDB_VERSION="7.1.57"
