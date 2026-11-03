@@ -513,6 +513,12 @@ class AsyncEnsemble:
             env_settings = [x.split("=", 1) for x in properties["env"].split(":")]
             for k, v in env_settings:
                 env[k] = v
+        if env.get("SKIP_7_4_UPGRADE", "true").lower() == "false" and env.get("FDB_7_4_BINARY_DIR"):
+            # FDB's shell scripts read OLDBINDIR. Direct TestHarness2 runs read TH_OLD_BINARIES_PATH.
+            env["OLDBINDIR"] = (
+                env.get("OLDBINDIR") or env.get("TH_OLD_BINARIES_PATH") or env["FDB_7_4_BINARY_DIR"]
+            )
+            env["TH_OLD_BINARIES_PATH"] = env.get("TH_OLD_BINARIES_PATH") or env["OLDBINDIR"]
         for k, v in properties.items():
             if k == "env":
                 continue

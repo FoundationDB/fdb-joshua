@@ -136,6 +136,12 @@ Note restarting tests need old `fdbserver` binaries and TLS libraries, which
 should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
 respectively.
 
+The amd64 worker image sets `SKIP_7_4_UPGRADE=true` by default. To let
+restart tests select FoundationDB 7.4.3 or 7.4.8 for upgrades and downgrades,
+pass `--env SKIP_7_4_UPGRADE=false` to `python3 -m joshua.joshua start`,
+or set `SKIP_7_4_UPGRADE=false` on the worker container. Earlier releases
+are available in both modes.
+
 To start agents, run
 ```shell
 docker run --rm -v /home/centos/joshua/:/opt/joshua -it foundationdb/joshua-agent:latest
