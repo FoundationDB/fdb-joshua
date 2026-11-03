@@ -38,6 +38,7 @@ import subprocess
 # this is used to read / patch Pod labels
 from kubernetes import client, config
 import fdb
+import fdb.tuple
 
 from . import joshua_model
 from . import process_handling

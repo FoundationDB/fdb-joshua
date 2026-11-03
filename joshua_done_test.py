@@ -11,7 +11,7 @@ from typing import List
 
 @fdb.transactional
 def write_ensemble_data(tr, path: list[str]):
-    root_dir = fdb.directory.create_or_open(tr, tuple(path))
+    root_dir = fdb.directory.create_or_open(tr, tuple(path))  # pyright: ignore[reportAttributeAccessIssue]
     num = os.getenv('JOSHUA_SEED', None)
     has_joshua_seed = num is not None
     num = num if has_joshua_seed else random.uniform(0, 1 << 32 - 1)

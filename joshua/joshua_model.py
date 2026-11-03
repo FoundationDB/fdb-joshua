@@ -35,18 +35,25 @@ import zlib
 import boto3
 from collections import defaultdict
 from io import BytesIO
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import fdb
 import fdb.tuple
+
+if TYPE_CHECKING:
+    # ParamSpec is Python 3.10+; it's only used in the quoted type hints on
+    # transactional(), so this keeps the module importable on Python 3.9.
+    from typing import Concatenate, ParamSpec
+
+    _P = ParamSpec("_P")
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 fdb.api_version(710)
-FDBError = fdb.FDBError
+FDBError = fdb.FDBError  # pyright: ignore[reportAttributeAccessIssue]
 
 ONE = b"\x01" + b"\x00" * 7
 TIMESTAMP_FMT = "%Y%m%d-%H%M%S"
@@ -131,7 +138,7 @@ def get_application_dir(ensemble_id):
 
 
 def create_or_open_top_path(db, dir_path):
-    dir_so_far = fdb.directory.create_or_open(db, dir_path[0])
+    dir_so_far = fdb.directory.create_or_open(db, dir_path[0])  # pyright: ignore[reportAttributeAccessIssue]
 
     for path_entry in dir_path[1:]:
         dir_so_far = dir_so_far.create_or_open(db, path_entry)
@@ -161,7 +168,7 @@ def sanitize_for_k8s_label(value):
     return sanitized
 
 
-def transactional(func):
+def transactional(func: "Callable[Concatenate[Any, _P], Any]") -> "Callable[_P, Any]":
     f1 = fdb.transactional(func)
 
     def helper(*args, **kw):
@@ -229,7 +236,7 @@ def format_datetime(dt_obj):
     return dt_obj.strftime(TIMESTAMP_FMT)
 
 
-def _list_and_watch_ensembles(tr: fdb.Transaction, dir, changes):
+def _list_and_watch_ensembles(tr: fdb.Transaction, dir, changes):  # pyright: ignore[reportAttributeAccessIssue]
     ensembles = []
     for k, v in tr[dir.range()]:
         (ensemble,) = dir.unpack(k)
@@ -244,7 +251,7 @@ def identify_existing_ensembles(tr, ensembles):
 
 
 @transactional
-def list_and_watch_active_ensembles(tr) -> Tuple[List[str], fdb.Future]:
+def list_and_watch_active_ensembles(tr) -> Tuple[List[str], fdb.Future]:  # pyright: ignore[reportAttributeAccessIssue]
     return _list_and_watch_ensembles(tr, dir_active, dir_active_changes)
 
 
@@ -257,7 +264,7 @@ def _get_ensemble_properties(tr, ensemble, snapshot=False):
     props = {}
     r = dir_all_ensembles[ensemble].range()
     prop_kvs = (tr.snapshot if snapshot else tr).get_range(
-        r.start, r.stop, streaming_mode=fdb.StreamingMode.want_all
+        r.start, r.stop, streaming_mode=fdb.StreamingMode.want_all  # pyright: ignore[reportAttributeAccessIssue]
     )
     for key, value in prop_kvs:
         _unpack_property(ensemble, key, value, props)
@@ -287,7 +294,7 @@ def _list_ensembles(tr, dir) -> List[Tuple[str, dict]]:
             (
                 ensemble,
                 tr.get_range(
-                    r.start, r.stop, streaming_mode=fdb.StreamingMode.want_all
+                    r.start, r.stop, streaming_mode=fdb.StreamingMode.want_all  # pyright: ignore[reportAttributeAccessIssue]
                 ),
             )
         )
@@ -337,7 +344,7 @@ def list_all_ensembles() -> List[Tuple[str, dict]]:
         prev_start = start
         try:
             for k, v in tr.get_range(
-                start, r.stop, streaming_mode=fdb.StreamingMode.want_all
+                start, r.stop, streaming_mode=fdb.StreamingMode.want_all  # pyright: ignore[reportAttributeAccessIssue]
             ):
                 start = k + b"\x00"
                 t = dir_all_ensembles.unpack(k)
@@ -747,20 +754,20 @@ def set_versionstamped_key(tr, prefix, suffix, value):
     )
 
 
-def _increment(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:
+def _increment(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:  # pyright: ignore[reportAttributeAccessIssue]
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], ONE)
 
 
-def _decrement(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:
+def _decrement(tr: fdb.Transaction, ensemble_id: str, counter: str) -> None:  # pyright: ignore[reportAttributeAccessIssue]
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], struct.pack("<q", -1))
 
 
-def _add(tr: fdb.Transaction, ensemble_id: str, counter: str, value: int) -> None:
+def _add(tr: fdb.Transaction, ensemble_id: str, counter: str, value: int) -> None:  # pyright: ignore[reportAttributeAccessIssue]
     byte_val = struct.pack("<Q", value)
     tr.add(dir_all_ensembles[ensemble_id]["count"][counter], byte_val)
 
 
-def _get_property(tr: fdb.Transaction, ensemble_id: str, property: str, default=0):
+def _get_property(tr: fdb.Transaction, ensemble_id: str, property: str, default=0):  # pyright: ignore[reportAttributeAccessIssue]
     value = tr[dir_all_ensembles[ensemble_id]["properties"][property]]
     if value == None:
         return default
@@ -768,7 +775,7 @@ def _get_property(tr: fdb.Transaction, ensemble_id: str, property: str, default=
 
 
 def _get_counter(
-    tr: fdb.Transaction, ensemble_id: str, counter: str, snapshot=False
+    tr: fdb.Transaction, ensemble_id: str, counter: str, snapshot=False  # pyright: ignore[reportAttributeAccessIssue]
 ) -> int:
     reader = tr.snapshot if snapshot else tr
     value = reader[dir_all_ensembles[ensemble_id]["count"][counter]]
@@ -777,7 +784,7 @@ def _get_counter(
     return struct.unpack("<Q", b"" + value)[0]
 
 
-def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:
+def _get_snap_counter(tr: fdb.Transaction, ensemble_id: str, counter: str) -> int:  # pyright: ignore[reportAttributeAccessIssue]
     return _get_counter(tr, ensemble_id, counter, snapshot=True)
 
 
@@ -789,7 +796,7 @@ def _claim_shard_limit(max_runs: int, shard: int, shard_count: int) -> int:
     return max_runs // shard_count + int(shard < max_runs % shard_count)
 
 
-def _get_claim_shard_counter(tr: fdb.Transaction, ensemble_id: str, shard: int) -> int:
+def _get_claim_shard_counter(tr: fdb.Transaction, ensemble_id: str, shard: int) -> int:  # pyright: ignore[reportAttributeAccessIssue]
     value = tr[dir_ensemble_claims[ensemble_id][shard]]
     if value == None:
         return 0
@@ -797,19 +804,19 @@ def _get_claim_shard_counter(tr: fdb.Transaction, ensemble_id: str, shard: int) 
 
 
 def _increment_claim_shard(
-    tr: fdb.Transaction, ensemble_id: str, shard: int
+    tr: fdb.Transaction, ensemble_id: str, shard: int  # pyright: ignore[reportAttributeAccessIssue]
 ) -> None:
     tr.add(dir_ensemble_claims[ensemble_id][shard], ONE)
 
 
 def _decrement_claim_shard(
-    tr: fdb.Transaction, ensemble_id: str, shard: int
+    tr: fdb.Transaction, ensemble_id: str, shard: int  # pyright: ignore[reportAttributeAccessIssue]
 ) -> None:
     tr.add(dir_ensemble_claims[ensemble_id][shard], struct.pack("<q", -1))
 
 
 def _get_seeds_and_heartbeats(
-    ensemble_id: str, tr: fdb.Transaction
+    ensemble_id: str, tr: fdb.Transaction  # pyright: ignore[reportAttributeAccessIssue]
 ) -> Iterator[Tuple[int, float]]:
     for k, v in tr.snapshot[dir_ensemble_incomplete[ensemble_id]["heartbeat"].range()]:
         (seed,) = dir_ensemble_incomplete[ensemble_id]["heartbeat"].unpack(k)
@@ -817,7 +824,7 @@ def _get_seeds_and_heartbeats(
         yield seed, heartbeat
 
 
-def _get_hostname(ensemble_id: str, seed: int, tr: fdb.Transaction) -> Optional[str]:
+def _get_hostname(ensemble_id: str, seed: int, tr: fdb.Transaction) -> Optional[str]:  # pyright: ignore[reportAttributeAccessIssue]
     v = tr.snapshot[dir_ensemble_incomplete[ensemble_id][seed]["hostname"]]
     if v != None:
         return fdb.tuple.unpack(v)[0]
@@ -825,7 +832,7 @@ def _get_hostname(ensemble_id: str, seed: int, tr: fdb.Transaction) -> Optional[
 
 
 @transactional
-def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
+def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:  # pyright: ignore[reportAttributeAccessIssue]
     """
     Return True if this agent should start a run for this ensemble. The
     policy tries not to overshoot max_runs by too much, but also accounts
@@ -892,7 +899,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
 
 
 @transactional
-def show_in_progress(tr: fdb.Transaction, ensemble_id: str) -> List[Tuple[int, dict]]:
+def show_in_progress(tr: fdb.Transaction, ensemble_id: str) -> List[Tuple[int, dict]]:  # pyright: ignore[reportAttributeAccessIssue]
     """
     Returns a list of properties for in progress tests
     """
@@ -1139,7 +1146,7 @@ def tail_results(ensemble_id, errors_only=False, compressed=True):
     begin_versionstamp = 0
     more = True
     while more:
-        block, watches, more = _read_and_watch_results(
+        block, watches, more = _read_and_watch_results(  # pyright: ignore[reportGeneralTypeIssues]
             db, result_dirs, ensemble_id, begin_versionstamp
         )
         if block:
@@ -1192,7 +1199,7 @@ def tail_results(ensemble_id, errors_only=False, compressed=True):
                 else:
                     yield new_item
         if watches:
-            fdb.Future.wait_for_any(*watches)
+            fdb.Future.wait_for_any(*watches)  # pyright: ignore[reportAttributeAccessIssue]
             for w in watches:
                 w.cancel()
 

@@ -18,6 +18,7 @@ import pytest
 from moto import mock_s3
 
 import fdb
+import fdb.tuple
 
 import joshua.joshua as joshua
 import joshua.joshua_agent as joshua_agent
@@ -155,12 +156,12 @@ def clear_db(fdb_cluster):
 
 
 @fdb.transactional
-def get_passes(tr: fdb.Transaction, ensemble_id: str) -> int:
+def get_passes(tr: fdb.Transaction, ensemble_id: str) -> int:  # pyright: ignore[reportAttributeAccessIssue]
     return joshua_model._get_snap_counter(tr, ensemble_id, "pass")
 
 
 @fdb.transactional
-def get_fails(tr: fdb.Transaction, ensemble_id: str) -> int:
+def get_fails(tr: fdb.Transaction, ensemble_id: str) -> int:  # pyright: ignore[reportAttributeAccessIssue]
     return joshua_model._get_snap_counter(tr, ensemble_id, "fail")
 
 
@@ -740,7 +741,7 @@ def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
 def verify_application_state(tr, ensemble, num_runs):
     dir_path = joshua_model.get_application_dir(ensemble)
     print('dir_path = ({})'.format(",".join(list(dir_path))))
-    ensemble_dir = fdb.directory.open(tr, dir_path)
+    ensemble_dir = fdb.directory.open(tr, dir_path)  # pyright: ignore[reportAttributeAccessIssue]
     count = 0
     for _, _ in tr[ensemble_dir.range()]:
         count += 1
@@ -752,7 +753,7 @@ def verify_application_state(tr, ensemble, num_runs):
 
 @fdb.transactional
 def verify_application_state_deleted(tr, ensemble):
-    assert not fdb.directory.exists(tr, joshua_model.get_application_dir(ensemble))
+    assert not fdb.directory.exists(tr, joshua_model.get_application_dir(ensemble))  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
