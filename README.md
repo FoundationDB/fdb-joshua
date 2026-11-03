@@ -136,11 +136,9 @@ Note restarting tests need old `fdbserver` binaries and TLS libraries, which
 should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
 respectively.
 
-The amd64 worker image sets `SKIP_7_4_UPGRADE=true` by default. To let
-restart tests select FoundationDB 7.4.3 or 7.4.8 for upgrades and downgrades,
-pass `--env SKIP_7_4_UPGRADE=false` to `python3 -m joshua.joshua start`,
-or set `SKIP_7_4_UPGRADE=false` on the worker container. Earlier releases
-are available in both modes.
+The amd64 worker build defaults to `INCLUDE_7_4_UPGRADE=false`. Run
+`INCLUDE_7_4_UPGRADE=true ./build.sh` to add the 7.4.3 and 7.4.8 servers
+to the standard `oldBinaries` directory for upgrade and downgrade tests.
 
 To start agents, run
 ```shell

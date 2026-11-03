@@ -56,20 +56,20 @@ RUN ARTIFACT=client python3 -m pip install /opt/joshua/install && \
 
 # install old fdbserver binaries and libfdb_c.so
 # just enough for foundationdb/tests/restarting/* for branches: release-7.3 release-7.4 main
-ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries
-ENV SKIP_7_4_UPGRADE=true \
-    FDB_7_4_BINARY_DIR=${OLD_FDB_BINARY_DIR}/with-7.4
+ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
+ARG INCLUDE_7_4_UPGRADE=false
 # This image only works for x86_64 ...
 RUN if [ "${TARGETARCH}" = "amd64" ]; then \
-        mkdir -p "${FDB_7_4_BINARY_DIR}" \
+        old_versions="7.3.69 7.3.43 7.1.61 7.1.19 6.3.18"; \
+        if [ "${INCLUDE_7_4_UPGRADE}" = "true" ]; then \
+            old_versions="$old_versions 7.4.3 7.4.8"; \
+        fi; \
+        mkdir -p ${OLD_FDB_BINARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
-        cd "${OLD_FDB_BINARY_DIR}" && \
-        for old_fdb_server_version in 7.4.8 7.4.3 7.3.69 7.3.43 7.1.61 7.1.19 6.3.18; do \
-            curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o fdbserver-${old_fdb_server_version} || exit 1; \
+        for old_fdb_server_version in $old_versions; do \
+            curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o "${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version}" || exit 1; \
         done && \
-        chmod +x fdbserver-* && \
-        mv fdbserver-7.4.* "${FDB_7_4_BINARY_DIR}/" && \
-        ln fdbserver-* "${FDB_7_4_BINARY_DIR}/"; \
+        chmod +x ${OLD_FDB_BINARY_DIR}/* ; \
     fi
 
 ARG FDB_VERSION="7.1.57"
