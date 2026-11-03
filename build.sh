@@ -18,7 +18,6 @@ fi
 ################################################################################
 docker build \
   --build-arg REPOSITORY=foundationdb/build \
-  --build-arg INCLUDE_7_4_UPGRADE \
   ${fdb_version_arg} \
   --tag foundationdb/joshua-agent:"${DATE_STR}-${COMMIT_HASH}" \
   --tag foundationdb/joshua-agent:latest \

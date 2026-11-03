@@ -136,9 +136,9 @@ Note restarting tests need old `fdbserver` binaries and TLS libraries, which
 should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
 respectively.
 
-The amd64 worker build defaults to `INCLUDE_7_4_UPGRADE=false`. Run
-`INCLUDE_7_4_UPGRADE=true ./build.sh` to add the 7.4.3 and 7.4.8 servers
-to the standard `oldBinaries` directory for upgrade and downgrade tests.
+To include FoundationDB 7.4.3 and 7.4.8 in the amd64 worker's `oldBinaries`
+directory for restart tests, explicitly pass `--build-arg INCLUDE_7_4_UPGRADE=true`
+to `docker build`. The standard `build.sh` uses the default set of five servers.
 
 To start agents, run
 ```shell
