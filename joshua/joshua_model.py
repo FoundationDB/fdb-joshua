@@ -865,29 +865,42 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
                 )
             )
 
-            _decrement(tr, ensemble_id, "started")
-            claim_shard = tr[
-                dir_ensemble_incomplete[ensemble_id][dead_seed][
-                    CLAIM_SHARD_PROPERTY
-                ]
-            ]
-            if claim_shard != None:
-                _decrement_claim_shard(
-                    tr, ensemble_id, fdb.tuple.unpack(claim_shard)[0]
-                )
             # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
             # We only want one agent to succeed in taking over for the dead agent's run/seed.
             tr.add_read_conflict_key(
                 dir_ensemble_incomplete[ensemble_id]["heartbeat"][dead_seed]
             )
-            del tr[dir_ensemble_incomplete[ensemble_id][dead_seed]]
-            del tr[dir_ensemble_incomplete[ensemble_id][dead_seed].range()]
-            del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][dead_seed]]
+            _release_run(tr, ensemble_id, dead_seed)
             return True
         return False
     else:
         # max_runs == 0 or started < max_runs and completed < max_runs
         return True
+
+
+def _release_run(tr: fdb.Transaction, ensemble_id: str, seed: int) -> None:
+    """Undo try_starting_test() for this seed, so that another run can be started in its place."""
+    _decrement(tr, ensemble_id, "started")
+    claim_shard = tr[dir_ensemble_incomplete[ensemble_id][seed][CLAIM_SHARD_PROPERTY]]
+    if claim_shard != None:
+        _decrement_claim_shard(tr, ensemble_id, fdb.tuple.unpack(claim_shard)[0])
+    del tr[dir_ensemble_incomplete[ensemble_id][seed]]
+    del tr[dir_ensemble_incomplete[ensemble_id][seed].range()]
+    del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]]
+
+
+@transactional
+def release_test(tr, ensemble_id, seed) -> bool:
+    """
+    Give up a run started by this agent (e.g. because the agent is shutting
+    down) without recording a result, returning it to the pool of runs to be
+    started. Returns False if the run was not ours to release (results were
+    already inserted, or another agent took it over).
+    """
+    if tr[dir_ensemble_incomplete[ensemble_id][seed]] != instanceid:
+        return False
+    _release_run(tr, ensemble_id, seed)
+    return True
 
 
 @transactional

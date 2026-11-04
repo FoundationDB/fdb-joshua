@@ -5,8 +5,10 @@ import os
 import pathlib
 import random
 import shutil
+import signal
 import socket
 import subprocess
+import sys
 import tarfile
 import tempfile
 import threading
@@ -22,6 +24,7 @@ import fdb
 import joshua.joshua as joshua
 import joshua.joshua_agent as joshua_agent
 import joshua.joshua_model as joshua_model
+import joshua.process_handling as process_handling
 
 
 fdb.api_version(710)
@@ -731,6 +734,107 @@ def test_ensemble_fails(tmp_path, empty_ensemble_fail):
 
     assert get_passes(joshua_model.db, ensemble_id) == 0
     assert get_fails(joshua_model.db, ensemble_id) >= 1
+
+
+def test_release_test_returns_claim(empty_ensemble):
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua",
+        {"max_runs": 1, joshua_model.CLAIM_SHARD_COUNT_PROPERTY: 1},
+        open(empty_ensemble, "rb"),
+    )
+    try:
+        assert joshua_model.try_starting_test(ensemble_id, 12345)
+        assert not joshua_model.try_starting_test(ensemble_id, 12346)
+
+        assert joshua_model.release_test(ensemble_id, 12345)
+        assert not joshua_model.release_test(ensemble_id, 12345)
+        assert get_started(joshua_model.db) == 0
+        assert joshua_model.show_in_progress(ensemble_id) == []
+
+        # The released claim (and its shard) can be taken by another run
+        assert joshua_model.try_starting_test(ensemble_id, 12346)
+        # Results for the released run are no longer accepted
+        assert not joshua_model._insert_results(ensemble_id, 12345, 1, b"")
+    finally:
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+def test_agent_shutdown_returns_test_to_pool(tmp_path, empty_ensemble_timeout):
+    """
+    Simulate a node shutdown: the test process gets SIGTERM, and then so does the
+    agent. The test must be returned to the pool, not recorded as a failure.
+    """
+
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(empty_ensemble_timeout, "rb")
+    )
+    agent = threading.Thread(
+        target=joshua_agent.agent,
+        args=(),
+        kwargs={
+            "work_dir": tmp_path,
+            "agent_idle_timeout": 1,
+        },
+    )
+    agent.daemon = True
+    try:
+        agent.start()
+        while not any(p.name() == "sleep" for p in process_handling.retrieve_children()):
+            time.sleep(0.01)
+        assert len(joshua_model.show_in_progress(ensemble_id)) == 1
+
+        for p in process_handling.retrieve_children():
+            p.send_signal(signal.SIGTERM)
+        time.sleep(0.1)
+        joshua_agent.shutdown_requested.set()
+
+        agent.join(timeout=30)
+        assert not agent.is_alive()
+        assert get_passes(joshua_model.db, ensemble_id) == 0
+        assert get_fails(joshua_model.db, ensemble_id) == 0
+        assert get_started(joshua_model.db) == 0
+        assert joshua_model.show_in_progress(ensemble_id) == []
+        assert process_handling.retrieve_children() == []
+    finally:
+        joshua_agent.shutdown_requested.clear()
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP])
+def test_agent_process_shutdown_signal(tmp_path, fdb_cluster, empty_ensemble_timeout, sig):
+    @fdb.transactional
+    def get_started(tr):
+        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(empty_ensemble_timeout, "rb")
+    )
+    agent = subprocess.Popen(
+        [sys.executable, "-m", "joshua.joshua_agent", "-C", fdb_cluster, "--work_dir", str(tmp_path)],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+    )
+    try:
+        while len(joshua_model.show_in_progress(ensemble_id)) == 0:
+            assert agent.poll() is None
+            time.sleep(0.01)
+        agent.send_signal(sig)
+        assert agent.wait(timeout=30) == 0
+        assert get_passes(joshua_model.db, ensemble_id) == 0
+        assert get_fails(joshua_model.db, ensemble_id) == 0
+        assert get_started(joshua_model.db) == 0
+        assert joshua_model.show_in_progress(ensemble_id) == []
+    finally:
+        agent.kill()
+        agent.wait()
+        joshua_model.delete_ensemble(ensemble_id)
 
 
 def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
