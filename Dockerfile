@@ -57,12 +57,13 @@ RUN ARTIFACT=client python3 -m pip install /opt/joshua/install && \
 # install old fdbserver binaries and libfdb_c.so
 # just enough for foundationdb/tests/restarting/* for branches: release-7.3 release-7.4 main
 ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
-ARG INCLUDE_7_4_UPGRADE=false
+# Opt in for deployments that use 7.4.3. See the RocksDB compatibility note in README.md.
+ARG INCLUDE_7_4_3_UPGRADE=false
 # This image only works for x86_64 ...
 RUN if [ "${TARGETARCH}" = "amd64" ]; then \
-        old_versions="7.3.69 7.3.43 7.1.61 7.1.19 6.3.18"; \
-        if [ "${INCLUDE_7_4_UPGRADE}" = "true" ]; then \
-            old_versions="$old_versions 7.4.3 7.4.8"; \
+        old_versions="7.4.8 7.3.69 7.3.43 7.1.61 7.1.19 6.3.18"; \
+        if [ "${INCLUDE_7_4_3_UPGRADE}" = "true" ]; then \
+            old_versions="$old_versions 7.4.3"; \
         fi; \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  /usr/lib/foundationdb/plugins && \

@@ -136,9 +136,15 @@ Note restarting tests need old `fdbserver` binaries and TLS libraries, which
 should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
 respectively.
 
-To include FoundationDB 7.4.3 and 7.4.8 in the amd64 worker's `oldBinaries`
-directory for restart tests, explicitly pass `--build-arg INCLUDE_7_4_UPGRADE=true`
-to `docker build`. The standard `build.sh` uses the default set of five servers.
+The amd64 worker includes FoundationDB 7.4.8 in `oldBinaries` by default.
+Include the versions you run in production so restart tests can use those binaries.
+If you run 7.4.3, pass `--build-arg INCLUDE_7_4_3_UPGRADE=true` to `docker build`
+to add it alongside 7.4.8.
+
+For production clusters that use the RocksDB storage engine, use 7.4.8 or later
+in the 7.4 series. The RocksDB disk format is incompatible when upgrading from
+7.4.0–7.4.6 to 7.4.7 or later in that series. This restriction applies only to
+data stored with RocksDB.
 
 To start agents, run
 ```shell
