@@ -17,7 +17,7 @@ all_modules = [
     Module(
         "joshua-client",
         "Joshua Client - interface to a great big supercomputer",
-        ["foundationdb==7.1.57", "python-dateutil", "lxml"],
+        ["foundationdb==7.1.57", "python-dateutil", "lxml", "psutil<6"],
         [],
         [childsubreaper],
         [
@@ -29,7 +29,7 @@ all_modules = [
     Module(
         "joshua",
         "Joshua - a supercomputer that runs simulations of war^H^H^Hdatabases",
-        ["foundationdb==7.1.57"],
+        ["foundationdb==7.1.57", "psutil<6"],
         [],
         [childsubreaper],
         ["Operating System :: POSIX :: Linux"],

@@ -152,6 +152,28 @@ def clear_db(fdb_cluster):
     )
 
 
+@pytest.fixture
+def agents_in_threads(monkeypatch):
+    """
+    For running multiple agents as threads in this process: mark subprocesses
+    per thread instead of per process, so one agent's cleanup doesn't kill the
+    subprocesses of another agent's run. (Each run marks its environment and
+    cleans up in the same thread.)
+    """
+    mark_environment = process_handling.mark_environment
+    kill_all_children = process_handling.kill_all_children
+
+    def marker():
+        return f"{os.getpid()}-{threading.get_ident()}"
+
+    monkeypatch.setattr(
+        process_handling, "mark_environment", lambda env: mark_environment(env, pid=marker())
+    )
+    monkeypatch.setattr(
+        process_handling, "kill_all_children", lambda: kill_all_children(pid=marker())
+    )
+
+
 #################### Tests ####################
 # Each function starting with `test_` will get
 # run by pytest, with an empty db.
@@ -478,7 +500,7 @@ def test_dead_agent(tmp_path, empty_ensemble):
     agent.join()
 
 
-def test_two_agents(tmp_path, empty_ensemble):
+def test_two_agents(tmp_path, empty_ensemble, agents_in_threads):
     """
     :tmp_path: https://docs.pytest.org/en/stable/tmpdir.html
     """
@@ -837,7 +859,7 @@ def test_agent_process_shutdown_signal(tmp_path, fdb_cluster, empty_ensemble_tim
         joshua_model.delete_ensemble(ensemble_id)
 
 
-def test_delete_ensemble(tmp_path, empty_ensemble_timeout):
+def test_delete_ensemble(tmp_path, empty_ensemble_timeout, agents_in_threads):
     ensemble_id = joshua_model.create_ensemble(
         "joshua", {"max_runs": 10, "timeout": 1}, open(empty_ensemble_timeout, "rb")
     )
@@ -882,7 +904,7 @@ def verify_application_state_deleted(tr, ensemble):
     assert not fdb.directory.exists(tr, joshua_model.get_application_dir(ensemble))
 
 
-def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done):
+def test_joshua_done_ensemble(tmp_path, empty_ensemble_joshua_done, agents_in_threads):
     max_runs: int = random.randint(1, 32)
     ensemble_id = joshua_model.create_ensemble('joshua', {"max_runs": max_runs},
                                                open(empty_ensemble_joshua_done, 'rb'))
@@ -922,7 +944,7 @@ class ThreadSafeCounter:
             return self.counter
 
 
-def test_two_agents_large_ensemble(monkeypatch, tmp_path, empty_ensemble):
+def test_two_agents_large_ensemble(monkeypatch, tmp_path, empty_ensemble, agents_in_threads):
     """
     :monkeypatch: https://docs.pytest.org/en/stable/monkeypatch.html
     :tmp_path: https://docs.pytest.org/en/stable/tmpdir.html
