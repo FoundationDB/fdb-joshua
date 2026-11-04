@@ -48,7 +48,6 @@ RUN groupadd -r joshua -g 4060 && \
     chown -R joshua:joshua /var/joshua
 
 # Install Joshua client
-COPY childsubreaper/ /opt/joshua/install/childsubreaper
 COPY joshua/ /opt/joshua/install/joshua
 COPY setup.py /opt/joshua/install/
 RUN ARTIFACT=client python3 -m pip install /opt/joshua/install && \

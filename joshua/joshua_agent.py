@@ -43,13 +43,6 @@ import fdb
 from . import joshua_model
 from . import process_handling
 
-try:
-    import childsubreaper
-except ImportError:
-    print(
-        "Unable to import module childsubreaper. Orphaned grandchildren will re-parent to init."
-    )
-
 # basepath = os.getcwd()
 mutex = threading.Lock()
 job_mutex = threading.Lock()
@@ -1107,22 +1100,7 @@ def agent(
         raise
 
 
-def reap_children():
-    # Call prctl(PR_SET_CHILD_SUBREAPER) so that grandchildren re-parent to this process instead of init.
-    if "childsubreaper" in dir():
-        retcode = childsubreaper.set_child_subreaper()
-
-        if retcode != 0:
-            print(
-                "Call prctl(PR_SET_CHILD_SUBREAPER) returned non-zero error code ",
-                retcode,
-            )
-            print("Orphaned grandchildren may re-parent to init.")
-
-
 if __name__ == "__main__":
-    reap_children()
-
     stop_file = os.environ.get("AGENT_STOPFILE", None)
 
     name_space = os.environ.get("JOSHUA_NAMESPACE", "joshua")

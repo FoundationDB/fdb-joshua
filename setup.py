@@ -1,16 +1,14 @@
 """
     joshua
 """
-from distutils.core import setup, Extension
+from distutils.core import setup
 from collections import namedtuple
 
 import os
 
-childsubreaper = Extension("childsubreaper", ["childsubreaper/childsubreaper.c"])
-
 Module = namedtuple(
     "Module",
-    ["name", "desc", "requirements", "private_repos", "ext_modules", "platforms"],
+    ["name", "desc", "requirements", "private_repos", "platforms"],
 )
 
 all_modules = [
@@ -19,7 +17,6 @@ all_modules = [
         "Joshua Client - interface to a great big supercomputer",
         ["foundationdb==7.1.57", "python-dateutil", "lxml", "psutil<6"],
         [],
-        [childsubreaper],
         [
             "Operating System :: MacOS :: MacOS X",
             "Operating System :: Microsoft :: Windows",
@@ -31,7 +28,6 @@ all_modules = [
         "Joshua - a supercomputer that runs simulations of war^H^H^Hdatabases",
         ["foundationdb==7.1.57", "psutil<6"],
         [],
-        [childsubreaper],
         ["Operating System :: POSIX :: Linux"],
     ),
 ]
@@ -63,7 +59,6 @@ for module in modules:
         package_data={"joshua": ["joshua/*.py"]},
         install_requires=module.requirements,
         dependency_links=module.private_repos,
-        ext_modules=module.ext_modules,
         classifiers=[
             "Development Status :: 5 - Production/Stable",
             "Intended Audience :: Developers",
