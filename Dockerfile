@@ -29,7 +29,7 @@ RUN ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
 # This should be moved into a dedicated step with a requirements file + version pinning.
 RUN python3 -m pip install \
         python-dateutil \
-        psutil \
+        psutil==5.9.2 \
         kubernetes==30.1.0 \
         urllib3==1.26.20 \
         boto3==1.43.14 \
@@ -48,7 +48,6 @@ RUN groupadd -r joshua -g 4060 && \
     chown -R joshua:joshua /var/joshua
 
 # Install Joshua client
-COPY childsubreaper/ /opt/joshua/install/childsubreaper
 COPY joshua/ /opt/joshua/install/joshua
 COPY setup.py /opt/joshua/install/
 RUN ARTIFACT=client python3 -m pip install /opt/joshua/install && \
@@ -121,6 +120,6 @@ ENV TRANSACTION_TIMEOUT_MS=256000
 ENV TRANSACTION_RETRY_LIMIT=1000
 
 USER joshua
-CMD python3 -m joshua.joshua_agent \
+CMD exec python3 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \
         --work_dir /var/joshua
