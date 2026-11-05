@@ -197,7 +197,7 @@ def test_create_ensemble():
 
 
 @pytest.mark.parametrize("stop", ["cli", "quiet-cli", "model"])
-def testStopEnsemblesByStoredOwner(stop, monkeypatch):
+def test_stop_ensembles_by_owner(stop, monkeypatch):
     owned = joshua_model.create_ensemble("custom-id", {"username": "alice"}, io.BytesIO())
     other = joshua_model.create_ensemble("alice", {"username": "bob"}, io.BytesIO())
 
@@ -219,7 +219,7 @@ def testStopEnsemblesByStoredOwner(stop, monkeypatch):
     assert "stopped" not in joshua_model.get_ensemble_properties(other)
 
 
-def testPreparedEnsembleIsInvisibleUntilActivated():
+def test_prepared_ensemble_invisible_until_activated():
     properties = {}
     contents = b"prepared ensemble data"
     ensemble = joshua_model.prepare_ensemble("joshua", properties, io.BytesIO(contents))
@@ -232,7 +232,7 @@ def testPreparedEnsembleIsInvisibleUntilActivated():
     assert [name for name, _ in joshua_model.list_active_ensembles()] == [ensemble]
 
 
-def testCreateAndStopInOneTransaction():
+def test_create_stop_one_transaction():
     properties = {"submitted": "20000101-000000"}
     ensemble = joshua_model.prepare_ensemble("joshua", properties, io.BytesIO())
 
