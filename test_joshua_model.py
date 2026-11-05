@@ -16,6 +16,7 @@ import time
 from typing import BinaryIO
 
 import boto3
+import psutil
 import pytest
 from moto import mock_s3
 
@@ -758,11 +759,23 @@ def test_ensemble_fails(tmp_path, empty_ensemble_fail):
     assert get_fails(joshua_model.db, ensemble_id) >= 1
 
 
-def test_release_test_returns_claim(empty_ensemble):
-    @fdb.transactional
-    def get_started(tr):
-        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+@fdb.transactional
+def get_counter(tr, ensemble_id, counter):
+    return joshua_model._get_snap_counter(tr, ensemble_id, counter)
 
+
+@fdb.transactional
+def get_claim_shard_counter(tr, ensemble_id, shard):
+    return joshua_model._get_claim_shard_counter(tr, ensemble_id, shard)
+
+
+@fdb.transactional
+def get_result_codes(tr, ensemble_id, results_dir):
+    # Result keys are (versionstamp, result_code, hostname, seed)
+    return [r[1] for r in joshua_model._read_results(tr, results_dir, ensemble_id, 0)]
+
+
+def test_release_test_returns_claim(empty_ensemble):
     ensemble_id = joshua_model.create_ensemble(
         "joshua",
         {"max_runs": 1, joshua_model.CLAIM_SHARD_COUNT_PROPERTY: 1},
@@ -773,8 +786,11 @@ def test_release_test_returns_claim(empty_ensemble):
         assert not joshua_model.try_starting_test(ensemble_id, 12346)
 
         assert joshua_model.release_test(ensemble_id, 12345)
+        # Already released: no-op, and the counters aren't touched again
         assert not joshua_model.release_test(ensemble_id, 12345)
-        assert get_started(joshua_model.db) == 0
+        assert get_counter(joshua_model.db, ensemble_id, "started") == 0
+        assert get_counter(joshua_model.db, ensemble_id, "interrupted") == 1
+        assert get_claim_shard_counter(joshua_model.db, ensemble_id, 0) == 0
         assert joshua_model.show_in_progress(ensemble_id) == []
 
         # The released claim (and its shard) can be taken by another run
@@ -785,16 +801,33 @@ def test_release_test_returns_claim(empty_ensemble):
         joshua_model.delete_ensemble(ensemble_id)
 
 
+def test_release_test_not_owned(monkeypatch, empty_ensemble):
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 2}, open(empty_ensemble, "rb")
+    )
+    try:
+        # Never claimed
+        assert not joshua_model.release_test(ensemble_id, 1)
+
+        # Claimed by another agent
+        monkeypatch.setattr(joshua_model, "instanceid", os.urandom(8))
+        assert joshua_model.try_starting_test(ensemble_id, 2)
+        monkeypatch.undo()
+        assert not joshua_model.release_test(ensemble_id, 2)
+
+        assert get_counter(joshua_model.db, ensemble_id, "started") == 1
+        assert get_counter(joshua_model.db, ensemble_id, "interrupted") == 0
+        assert len(joshua_model.show_in_progress(ensemble_id)) == 1
+    finally:
+        joshua_model.delete_ensemble(ensemble_id)
+
+
 def test_agent_shutdown_returns_test_to_pool(tmp_path, empty_ensemble_timeout):
     """
-    Simulate a node shutdown: the test process gets SIGTERM, and then so does the
-    agent. The test must be returned to the pool, not recorded as a failure.
+    Simulate a node shutdown with an in-process agent: the test process gets
+    SIGTERM, and then so does the agent. The test must be returned to the pool,
+    not recorded as a failure.
     """
-
-    @fdb.transactional
-    def get_started(tr):
-        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
-
     ensemble_id = joshua_model.create_ensemble(
         "joshua", {"max_runs": 1}, open(empty_ensemble_timeout, "rb")
     )
@@ -816,46 +849,233 @@ def test_agent_shutdown_returns_test_to_pool(tmp_path, empty_ensemble_timeout):
         for p in process_handling.retrieve_children():
             p.send_signal(signal.SIGTERM)
         time.sleep(0.1)
-        joshua_agent.shutdown_requested.set()
+        joshua_agent.stop_agent.set()
 
         agent.join(timeout=30)
         assert not agent.is_alive()
         assert get_passes(joshua_model.db, ensemble_id) == 0
         assert get_fails(joshua_model.db, ensemble_id) == 0
-        assert get_started(joshua_model.db) == 0
+        assert get_counter(joshua_model.db, ensemble_id, "started") == 0
+        assert get_counter(joshua_model.db, ensemble_id, "interrupted") == 1
         assert joshua_model.show_in_progress(ensemble_id) == []
         assert process_handling.retrieve_children() == []
     finally:
-        joshua_agent.shutdown_requested.clear()
+        joshua_agent.stop_agent.clear()
         joshua_model.delete_ensemble(ensemble_id)
 
 
-@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP])
-def test_agent_process_shutdown_signal(tmp_path, fdb_cluster, empty_ensemble_timeout, sig):
-    @fdb.transactional
-    def get_started(tr):
-        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
+#### Agent subprocess tests: signals are delivered to a process, so these run
+#### the agent as a real process, in its own process group so a whole
+#### "container" can be signalled with killpg().
 
+
+def start_agent_process(cluster_file, work_dir, **env):
+    return subprocess.Popen(
+        [
+            sys.executable, "-m", "joshua.joshua_agent",
+            "-C", cluster_file,
+            "--work_dir", str(work_dir),
+            "--agent-idle-timeout", "1",
+        ],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+        start_new_session=True,
+        env={**os.environ, "JOSHUA_AGENT_HEARTBEAT_INTERVAL": "0.1", **env},
+    )
+
+
+def wait_for_test_process(agent, ensemble_id, timeout=20):
+    """Wait until the agent has a test running; returns the agent's direct children."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        assert agent.poll() is None, "agent exited before starting the test"
+        children = psutil.Process(agent.pid).children()
+        if children and len(joshua_model.show_in_progress(ensemble_id)) == 1:
+            return children
+        time.sleep(0.05)
+    raise AssertionError("test process never started")
+
+
+def group_alive(pgid):
+    alive = []
+    for p in psutil.process_iter():
+        try:
+            if os.getpgid(p.pid) == pgid and p.status() != psutil.STATUS_ZOMBIE:
+                alive.append(p)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError):
+            pass
+    return alive
+
+
+def kill_agent_group(agent):
+    try:
+        os.killpg(agent.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    agent.wait()
+
+
+def assert_interrupted(agent, ensemble_id):
+    assert agent.wait(timeout=30) == 0
+    assert get_passes(joshua_model.db, ensemble_id) == 0
+    assert get_fails(joshua_model.db, ensemble_id) == 0
+    assert get_counter(joshua_model.db, ensemble_id, "started") == 0
+    assert get_counter(joshua_model.db, ensemble_id, "interrupted") == 1
+    assert joshua_model.show_in_progress(ensemble_id) == []
+    assert get_result_codes(joshua_model.db, ensemble_id, joshua_model.dir_ensemble_results_fail) == []
+    assert get_result_codes(joshua_model.db, ensemble_id, joshua_model.dir_ensemble_results_pass) == []
+    # The test's processes are gone too
+    deadline = time.time() + 5
+    while group_alive(agent.pid) and time.time() < deadline:
+        time.sleep(0.05)
+    assert group_alive(agent.pid) == []
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP])
+def test_agent_signal_drain(tmp_path, fdb_cluster, empty_ensemble_timeout, sig):
+    """Kubernetes drain: only the agent (PID 1) gets the signal, the test keeps running."""
     ensemble_id = joshua_model.create_ensemble(
         "joshua", {"max_runs": 1}, open(empty_ensemble_timeout, "rb")
     )
-    agent = subprocess.Popen(
-        [sys.executable, "-m", "joshua.joshua_agent", "-C", fdb_cluster, "--work_dir", str(tmp_path)],
-        cwd=os.path.dirname(os.path.abspath(__file__)),
-    )
+    agent = start_agent_process(fdb_cluster, tmp_path)
     try:
-        while len(joshua_model.show_in_progress(ensemble_id)) == 0:
-            assert agent.poll() is None
-            time.sleep(0.01)
+        wait_for_test_process(agent, ensemble_id)
         agent.send_signal(sig)
+        assert_interrupted(agent, ensemble_id)
+    finally:
+        kill_agent_group(agent)
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+def test_agent_signal_reclaim(tmp_path, fdb_cluster, empty_ensemble_timeout):
+    """Spot reclaim: systemd sends SIGTERM to every process in the container at once."""
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(empty_ensemble_timeout, "rb")
+    )
+    agent = start_agent_process(fdb_cluster, tmp_path)
+    try:
+        wait_for_test_process(agent, ensemble_id)
+        os.killpg(agent.pid, signal.SIGTERM)
+        assert_interrupted(agent, ensemble_id)
+    finally:
+        kill_agent_group(agent)
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+def test_agent_signal_race(tmp_path, fdb_cluster, empty_ensemble_timeout):
+    """The test dies from SIGTERM before the agent's own signal arrives."""
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(empty_ensemble_timeout, "rb")
+    )
+    agent = start_agent_process(fdb_cluster, tmp_path, JOSHUA_AGENT_SIGNAL_WAIT="5")
+    try:
+        for p in wait_for_test_process(agent, ensemble_id):
+            p.send_signal(signal.SIGTERM)
+        time.sleep(0.5)
+        agent.send_signal(signal.SIGTERM)
+        assert_interrupted(agent, ensemble_id)
+    finally:
+        kill_agent_group(agent)
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+def test_agent_signal_race_test_catches_sigterm(tmp_path, fdb_cluster):
+    """
+    Like test_agent_signal_race, but the test catches SIGTERM and exits with a
+    normal error code instead of dying from the signal.
+    """
+    pid_file = tmp_path / "test.pid"
+    ensemble = empty_ensemble_factory(
+        tmp_path, f'echo $$ > {pid_file}; trap "exit 1" TERM; sleep 100000 & wait'
+    )
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(ensemble, "rb")
+    )
+    agent = start_agent_process(fdb_cluster, tmp_path / "work", JOSHUA_AGENT_SIGNAL_WAIT="5")
+    try:
+        wait_for_test_process(agent, ensemble_id)
+        deadline = time.time() + 10
+        while not pid_file.exists() and time.time() < deadline:
+            time.sleep(0.05)
+        os.kill(int(pid_file.read_text()), signal.SIGTERM)
+        time.sleep(0.5)
+        agent.send_signal(signal.SIGTERM)
+        assert_interrupted(agent, ensemble_id)
+    finally:
+        kill_agent_group(agent)
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+def test_agent_signal_ctrl_c(tmp_path, fdb_cluster, empty_ensemble_timeout):
+    """
+    Ctrl-C in a terminal sends SIGINT to the whole foreground process group, so
+    the test dies with -2 (the same value as the agent's timeout sentinel). The
+    ensemble has no timeout property, which used to raise TypeError.
+    """
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(empty_ensemble_timeout, "rb")
+    )
+    agent = start_agent_process(fdb_cluster, tmp_path)
+    try:
+        wait_for_test_process(agent, ensemble_id)
+        os.killpg(agent.pid, signal.SIGINT)
+        assert_interrupted(agent, ensemble_id)
+    finally:
+        kill_agent_group(agent)
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+@pytest.mark.parametrize("sig,signum", [("TERM", 15), ("KILL", 9)])
+def test_test_killed_by_itself_is_recorded(tmp_path, fdb_cluster, sig, signum):
+    """
+    A test killed by a signal when the agent gets no signal (e.g. it kills itself,
+    or the OOM killer) is a real failure, recorded after the signal wait.
+    """
+    ensemble = empty_ensemble_factory(tmp_path, f"kill -{sig} $$")
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": 1}, open(ensemble, "rb")
+    )
+    agent = start_agent_process(fdb_cluster, tmp_path / "work", JOSHUA_AGENT_SIGNAL_WAIT="0.5")
+    try:
         assert agent.wait(timeout=30) == 0
         assert get_passes(joshua_model.db, ensemble_id) == 0
-        assert get_fails(joshua_model.db, ensemble_id) == 0
-        assert get_started(joshua_model.db) == 0
-        assert joshua_model.show_in_progress(ensemble_id) == []
+        assert get_fails(joshua_model.db, ensemble_id) == 1
+        assert get_counter(joshua_model.db, ensemble_id, "interrupted") == 0
+        # -signum if /bin/sh execs the test command (bash), 128 + signum if it
+        # stays as the test's parent (dash).
+        assert get_result_codes(
+            joshua_model.db, ensemble_id, joshua_model.dir_ensemble_results_fail
+        ) in ([-signum], [128 + signum])
     finally:
-        agent.kill()
-        agent.wait()
+        kill_agent_group(agent)
+        joshua_model.delete_ensemble(ensemble_id)
+
+
+def test_passing_tests_are_not_delayed(tmp_path, fdb_cluster, empty_ensemble):
+    """
+    Only tests killed by a signal wait for the agent's own signal. A huge
+    JOSHUA_AGENT_SIGNAL_WAIT must not slow down tests that exit normally, and
+    there must be no fixed per-test sleep either.
+    """
+    max_runs = 16
+    ensemble_id = joshua_model.create_ensemble(
+        "joshua", {"max_runs": max_runs}, open(empty_ensemble, "rb")
+    )
+    agent = start_agent_process(fdb_cluster, tmp_path / "work", JOSHUA_AGENT_SIGNAL_WAIT="30")
+    try:
+        deadline = time.time() + 25
+        first = None
+        while time.time() < deadline:
+            passes = get_passes(joshua_model.db, ensemble_id)
+            if passes >= 1 and first is None:
+                first = time.time()
+            if passes >= max_runs:
+                break
+            time.sleep(0.05)
+        assert get_passes(joshua_model.db, ensemble_id) >= max_runs
+        # 15 runs after the first; a fixed 1s sleep per test would take >= 15s
+        assert time.time() - first < 12
+    finally:
+        kill_agent_group(agent)
         joshua_model.delete_ensemble(ensemble_id)
 
 

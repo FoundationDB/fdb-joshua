@@ -43,6 +43,9 @@ data:
                     path: fdb.cluster
           serviceAccountName: joshua-agent-sa
           restartPolicy: Never
+          # On SIGTERM the agent kills its test and returns the run to the pool,
+          # which takes up to ~20s (JOSHUA_AGENT_SHUTDOWN_TIMEOUT).
+          terminationGracePeriodSeconds: 30
 kind: ConfigMap
 metadata:
   name: joshua-agent-template

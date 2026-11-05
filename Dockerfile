@@ -120,6 +120,6 @@ ENV TRANSACTION_TIMEOUT_MS=256000
 ENV TRANSACTION_RETRY_LIMIT=1000
 
 USER joshua
-CMD python3 -m joshua.joshua_agent \
+CMD exec python3 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \
         --work_dir /var/joshua

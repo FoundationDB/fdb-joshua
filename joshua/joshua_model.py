@@ -894,12 +894,13 @@ def release_test(tr, ensemble_id, seed) -> bool:
     """
     Give up a run started by this agent (e.g. because the agent is shutting
     down) without recording a result, returning it to the pool of runs to be
-    started. Returns False if the run was not ours to release (results were
-    already inserted, or another agent took it over).
+    started, and count it as interrupted. Returns False if the run was not ours
+    to release (results were already inserted, or another agent took it over).
     """
     if tr[dir_ensemble_incomplete[ensemble_id][seed]] != instanceid:
         return False
     _release_run(tr, ensemble_id, seed)
+    _increment(tr, ensemble_id, "interrupted")
     return True
 
 

@@ -50,28 +50,37 @@ threadlocal = threading.local()
 job_queue = queue.Queue()
 jobs_pass = 0
 jobs_fail = 0
-stop_agent = False
 # Set by the SIGTERM/SIGINT/SIGHUP handler. Any in-progress test is returned
 # to the pool (not reported as a result), and the agent exits.
-shutdown_requested = threading.Event()
-# How long the main thread waits for the agent to wind down after a shutdown
-# signal. Should fit within the k8s terminationGracePeriodSeconds (default 30).
-SHUTDOWN_TIMEOUT = 20
+stop_agent = threading.Event()
+
+
+def _get_seconds_from_env(name, default):
+    seconds = os.environ.get(name, default)
+    try:
+        seconds = float(seconds)
+    except ValueError:
+        raise JoshuaError(f"{name} must be a positive number of seconds")
+    if seconds <= 0.0:
+        raise JoshuaError(f"{name} must be a positive number of seconds")
+    return seconds
 
 
 def get_heartbeat_interval():
-    interval = os.environ.get("JOSHUA_AGENT_HEARTBEAT_INTERVAL", "1.0")
-    try:
-        interval = float(interval)
-    except ValueError:
-        raise JoshuaError(
-            "JOSHUA_AGENT_HEARTBEAT_INTERVAL must be a positive number of seconds"
-        )
-    if interval <= 0.0:
-        raise JoshuaError(
-            "JOSHUA_AGENT_HEARTBEAT_INTERVAL must be a positive number of seconds"
-        )
-    return interval
+    return _get_seconds_from_env("JOSHUA_AGENT_HEARTBEAT_INTERVAL", "1.0")
+
+
+# How long to wait for the agent's own shutdown signal after the test fails. On
+# node shutdown every process gets SIGTERM, and the test may die just before the
+# agent's handler runs.
+def get_signal_wait():
+    return _get_seconds_from_env("JOSHUA_AGENT_SIGNAL_WAIT", "2.0")
+
+
+# How long the main thread waits for the agent to wind down after a shutdown
+# signal. Should fit within the k8s terminationGracePeriodSeconds (30).
+def get_shutdown_timeout():
+    return _get_seconds_from_env("JOSHUA_AGENT_SHUTDOWN_TIMEOUT", "20.0")
 
 
 # This is thrown by Joshua to indicate that there was an error.
@@ -130,16 +139,21 @@ def getFileHandle():
 
 
 def stopAgent():
-    global stop_agent
-    return stop_agent or shutdown_requested.is_set()
+    return stop_agent.is_set()
 
 
 def handle_shutdown_signal(signum, frame):
-    if shutdown_requested.is_set():
-        log(f"Received {signal.Signals(signum).name} again, exiting immediately")
-        sys.exit(128 + signum)
+    if stop_agent.is_set():
+        # A second ctrl-c exits immediately. Other repeated signals are ignored,
+        # e.g. more than one SIGTERM during node shutdown must not interrupt
+        # returning the test to the pool.
+        if signum == signal.SIGINT:
+            log(f"Received {signal.Signals(signum).name} again, exiting immediately")
+            sys.exit(128 + signum)
+        log(f"Received {signal.Signals(signum).name} again, already shutting down")
+        return
     log(f"Received {signal.Signals(signum).name}, returning any in-progress test to the pool and exiting")
-    shutdown_requested.set()
+    stop_agent.set()
 
 
 def trim_jobqueue(cutoff_date, remove_jobs=True):
@@ -434,8 +448,7 @@ class AsyncDone:
         process = subprocess.Popen(
             command,
             cwd=cwd,
-            env=env,
-            start_new_session=True,
+            env=env
         )
         while True:
             getFileHandle().flush()
@@ -575,10 +588,7 @@ class AsyncEnsemble:
 
         log(f"{ensemble} {seed} {command}")
 
-        # Run the test and log output.
-        # Use a new session so that terminal-generated signals (e.g. ctrl-c
-        # SIGINT, SIGHUP) go to the agent only, and the agent decides what to
-        # do with the test, instead of the test dying and being reported failed.
+        # Run the test and log output
         process = subprocess.Popen(
             command,
             cwd=where,
@@ -586,7 +596,6 @@ class AsyncEnsemble:
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            start_new_session=True,
         )
         start_time = time.time()
         if timeout_time:
@@ -594,12 +603,17 @@ class AsyncEnsemble:
 
         output = b""
         retcode = 0
+        # Set only when the test exits on its own, not for the agent's own
+        # cancel (-1) and timeout (-2).
+        test_failed = False
+        timed_out = False
 
         while True:
             getFileHandle().flush()
             try:
                 output, _ = process.communicate(timeout=1)
                 retcode = process.poll()
+                test_failed = retcode != 0
                 log(f"exit code: {retcode}")
                 # output = output.decode('utf-8')
 
@@ -607,7 +621,7 @@ class AsyncEnsemble:
             except subprocess.TimeoutExpired as timeout_ex:
                 # TimeoutExpired exception contains partial output
                 # captured before timeout. We must preserve this!
-                if shutdown_requested.is_set():
+                if stopAgent():
                     break
                 if self._cancelled():
                     log("<cancelled>")
@@ -652,6 +666,7 @@ class AsyncEnsemble:
                         log(f"Generated fallback XML ({len(output)} bytes)")
 
                     retcode = -2
+                    timed_out = True
                     break
                 getFileHandle().write(".")
 
@@ -660,9 +675,12 @@ class AsyncEnsemble:
         # A shutdown signal may also have killed the test itself (e.g. when the
         # node is shutting down, every process gets SIGTERM), so don't report the
         # result; run_ensemble() returns the run to the pool instead.
-        # The test may get the signal slightly before we do, so give it a moment.
-        time.sleep(1.0)
-        if shutdown_requested.is_set():
+        # The test may get the signal slightly before we do, so if it failed, give
+        # it a moment. Any failure, not just a signal exit: the test may catch the
+        # signal and exit with a normal error code.
+        if test_failed:
+            stop_agent.wait(get_signal_wait())
+        if stopAgent():
             log("<shutdown requested, abandoning test>")
             try:
                 process_handling.kill_all_children()
@@ -673,7 +691,7 @@ class AsyncEnsemble:
 
         done_timestamp = joshua_model.format_datetime(datetime.datetime.now(datetime.timezone.utc))
 
-        if retcode == -2 and time.time() > timeout_time:
+        if timed_out:
             if os.path.isfile(os.path.join(where, timeout_command)):
                 log("Summarizing timeout...")
                 try:
@@ -684,7 +702,6 @@ class AsyncEnsemble:
                         shell=True,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
-                        start_new_session=True,
                     )
                     output, _ = process.communicate(timeout=timeout_command_timeout)
                     log("done")
@@ -799,7 +816,7 @@ def run_ensemble(
 ):
     seed = random.getrandbits(63)
 
-    if shutdown_requested.is_set():
+    if stopAgent():
         raise AgentShutdown("Not starting a test because the agent is shutting down")
     if not joshua_model.try_starting_test(ensemble, seed, sanity):
         log("<job stopped>")
@@ -815,7 +832,7 @@ def run_ensemble(
         # Releasing the run also makes any later insert_results() for it a
         # no-op, so a test killed by the shutdown can't be recorded as failed.
         nonlocal released
-        if shutdown_requested.is_set() and not released:
+        if stopAgent() and not released:
             released = True
             if joshua_model.release_test(ensemble, seed):
                 log(f"Returned {ensemble} {seed} to the pool")
@@ -837,7 +854,7 @@ def run_ensemble(
     while True:
         asyncEnsembleThread.join(timeout=heartbeat_interval)
         if asyncEnsembleThread.is_alive():
-            if shutdown_requested.is_set():
+            if stopAgent():
                 release_on_shutdown()
             elif not joshua_model.heartbeat_and_check_running(ensemble, seed, sanity):
                 asyncEnsemble.cancel()
@@ -1198,6 +1215,11 @@ if __name__ == "__main__":
         agent_timeout = None
         log("No agent timeout configured - agent will run indefinitely")
 
+    # Fail now on a bad value, rather than when the agent is shutting down.
+    get_heartbeat_interval()
+    get_signal_wait()
+    shutdown_timeout = get_shutdown_timeout()
+
     # joshua_model uses logging
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s)] (%(levelname).3s) %(message)s")
 
@@ -1225,12 +1247,12 @@ if __name__ == "__main__":
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, handle_shutdown_signal)
     t.start()
-    while t.is_alive() and not shutdown_requested.is_set():
+    while t.is_alive() and not stopAgent():
         t.join(2.0)
-    if shutdown_requested.is_set():
-        t.join(SHUTDOWN_TIMEOUT)
+    if stopAgent():
+        t.join(shutdown_timeout)
         if t.is_alive():
-            log(f"Agent did not shut down within {SHUTDOWN_TIMEOUT} seconds, exiting anyway")
+            log(f"Agent did not shut down within {shutdown_timeout} seconds, exiting anyway")
         try:
             process_handling.kill_all_children()
         except OSError as e:
