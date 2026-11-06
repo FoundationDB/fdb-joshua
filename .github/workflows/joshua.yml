@@ -12,11 +12,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
       # Install the expected Python version, action version is v6.2
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: '3.13'
           cache: 'pip' # caching pip dependencies
+
       - name: Install fdb and dependencies
         run: |
           sudo mkdir -p /var/lib/foundationdb/data
@@ -31,3 +33,25 @@ jobs:
       - name: Test
         run: |
           pytest -v
+
+  lint:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # Install the expected Python version, action version is v6.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.13'
+          cache: 'pip' # caching pip dependencies
+
+      - name: Install flake8
+        run: |
+          python -m pip install 'flake8 <8.0'
+          flake8 --version
+
+      - name: Lint with flake8
+        run: |
+          flake8 -v
+
