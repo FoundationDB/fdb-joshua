@@ -35,7 +35,7 @@ import zlib
 import boto3
 from collections import defaultdict
 from io import BytesIO
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import fdb
@@ -96,7 +96,8 @@ def open(c_file=None, dir_path=("joshua",)):
     global cluster_file, db, dir_top, dir_ensembles, dir_active, dir_sanity, dir_all_ensembles, dir_ensemble_data
     global dir_ensemble_results, dir_ensemble_results_pass, dir_ensemble_results_fail, dir_ensemble_incomplete
     global dir_ensemble_claims
-    global dir_ensemble_results_large, dir_ensemble_results_application, dir_active_changes, dir_sanity_changes, dir_failures
+    global dir_ensemble_results_large, dir_ensemble_results_application
+    global dir_active_changes, dir_sanity_changes, dir_failures
 
     cluster_file = c_file
     db = fdb.open(cluster_file)
@@ -394,7 +395,7 @@ def get_ensemble_priorities(tr, ensembles=None):
 @fdb.transactional
 def _insert_blobpart(tr, subspace, offset, data):
     for rel_offs in range(0, min(BLOB_TRANSACTION_LIMIT, len(data)), BLOB_KEY_LIMIT):
-        tr[subspace[offset + rel_offs]] = data[rel_offs : rel_offs + BLOB_KEY_LIMIT]
+        tr[subspace[offset+rel_offs]] = data[rel_offs: rel_offs+BLOB_KEY_LIMIT]
 
 
 def _insert_blob(db, subspace, file, offset=0, verbose=False):
@@ -416,7 +417,7 @@ def _insert_blob(db, subspace, file, offset=0, verbose=False):
 @fdb.transactional
 def _read_blobpart(tr, subspace, offset):
     data = []
-    for k, v in tr[subspace[offset] : subspace[offset + BLOB_TRANSACTION_LIMIT]]:
+    for k, v in tr[subspace[offset]: subspace[offset+BLOB_TRANSACTION_LIMIT]]:
         # print( len(data), offset, len(v), repr(k), repr(subspace[offset].key()) )
         assert subspace[offset].key() == k
         data.append(v)
@@ -836,7 +837,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
     failed = props.get("fail", 0)
     completed = passed + failed
     max_runs = props.get("max_runs", 0)
-    
+
     # max_runs == 0 means run forever
     if max_runs > 0 and completed >= max_runs:
         # Ensemble has reached its completion target, no more work needed
@@ -848,7 +849,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
         dead_seed = None
         saw_heartbeat = False
         for seed, heartbeat in _get_seeds_and_heartbeats(ensemble_id, tr):
-            assert type(seed) == int
+            assert type(seed) is int
             saw_heartbeat = True
             if current_time - heartbeat > 10:
                 # Reclaiming any expired run frees one slot. Do not scan every
@@ -1108,9 +1109,8 @@ def insert_results(
 
 def _read_results(tr, results_dir, ensemble_id, begin_versionstamp):
     for k, v in tr[
-        results_dir[ensemble_id][begin_versionstamp] : results_dir[ensemble_id]
-        .range()
-        .stop
+        results_dir[ensemble_id][begin_versionstamp]:
+        results_dir[ensemble_id].range().stop
     ]:
         yield results_dir[ensemble_id].unpack(k) + (v,)
 

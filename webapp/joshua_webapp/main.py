@@ -18,17 +18,20 @@
 # limitations under the License.
 #
 
+import os
+import sys
 from collections import OrderedDict
+
 from flask import current_app as app
 from flask import Blueprint, render_template, request, flash, redirect, url_for, Response
 from flask_login import login_required, current_user
 from flask_wtf import FlaskForm
-from joshua import joshua, joshua_model
 from werkzeug.utils import secure_filename
 from wtforms import StringField, SubmitField, FileField, BooleanField, IntegerField
 from wtforms.validators import DataRequired, NumberRange
 
-import os, sys
+from joshua import joshua, joshua_model
+
 
 main = Blueprint('main', __name__)
 

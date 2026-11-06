@@ -7,7 +7,6 @@ import random
 
 fdb.api_version(710)
 
-from typing import List
 
 @fdb.transactional
 def write_ensemble_data(tr, path: list[str]):
