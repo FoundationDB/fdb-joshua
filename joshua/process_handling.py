@@ -112,7 +112,7 @@ def any_zombies():
     #   <rdar://problem/42791356> Healthcheck agent is leaving zombie processes visible to application
     return list(
         filter(
-            lambda x: "<defunct>" in x and not "health_check" in x,
+            lambda x: "<defunct>" in x and "health_check" not in x,
             out.decode("utf-8").split("\n"),
         )
     )
