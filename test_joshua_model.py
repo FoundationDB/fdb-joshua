@@ -1,6 +1,5 @@
 import hashlib
 import io
-import math
 import os
 import pathlib
 import random
@@ -43,6 +42,7 @@ def getFreePort():
     s.close()
     return result
 
+
 class EnsembleFactory:
     def __init__(self, tmp_path):
         self.file_name = os.path.join(tmp_path, "ensemble.tar.gz")
@@ -71,6 +71,7 @@ class EnsembleFactory:
 
     def done(self) -> None:
         self.ensemble.close()
+
 
 def empty_ensemble_factory(tmp_path, script_contents):
     """
@@ -103,6 +104,7 @@ def empty_ensemble_fail(tmp_path):
     Returns a filename whose contents is a tarball containing a failing joshua_test and joshua_timeout
     """
     yield empty_ensemble_factory(tmp_path, "false")
+
 
 @pytest.fixture
 def empty_ensemble_joshua_done(tmp_path):
@@ -192,7 +194,7 @@ def get_fails(tr: fdb.Transaction, ensemble_id: str) -> int:
 
 def test_create_ensemble():
     assert len(joshua_model.list_active_ensembles()) == 0
-    ensemble_id = joshua_model.create_ensemble("joshua", {}, io.BytesIO())
+    _ = joshua_model.create_ensemble("joshua", {}, io.BytesIO())
     assert len(joshua_model.list_active_ensembles()) > 0
 
 
@@ -244,7 +246,10 @@ def test_create_stop_one_transaction():
     createAndStop(joshua_model.db)
     assert joshua_model.list_active_ensembles() == []
     stopped = joshua_model.get_ensemble_properties(ensemble)
-    expected_runtime = joshua_model.load_datetime(stopped["stopped"]) - joshua_model.load_datetime(properties["submitted"])
+    expected_runtime = (
+        joshua_model.load_datetime(stopped["stopped"]) -
+        joshua_model.load_datetime(properties["submitted"])
+    )
     assert joshua_model.load_timedelta(stopped["runtime"]) == expected_runtime
 
 
@@ -313,11 +318,12 @@ def test_validate_ensemble(tmp_path, empty_ensemble):
     print(newhash)
     assert orighash == newhash
 
+
 @mock_s3
 def test_validate_ensemble_s3(tmp_path, empty_ensemble):
-    bucket="test_bucket"
-    ensemble_path="tests" + "/" + empty_ensemble
-    s3url="s3://" + bucket + "/" + ensemble_path
+    bucket = "test_bucket"
+    ensemble_path = "tests" + "/" + empty_ensemble
+    s3url = "s3://" + bucket + "/" + ensemble_path
     outfile = str(tmp_path) + "/" + "outfile"
 
     with open(empty_ensemble, "rb") as fin:
@@ -562,10 +568,6 @@ def test_two_agents(tmp_path, empty_ensemble, agents_in_threads):
             time.sleep(0.001)
 
     joshua.tail_ensemble(ensemble_id, username="joshua")
-
-    @fdb.transactional
-    def get_started(tr):
-        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
 
     # The second agent won't have started this ensemble (unless somehow > 10
     # seconds passed without the first agent completing the ensemble)
@@ -1240,10 +1242,6 @@ def test_two_agents_large_ensemble(monkeypatch, tmp_path, empty_ensemble, agents
             time.sleep(0.01)
 
     joshua.tail_ensemble(ensemble_id, username="joshua")
-
-    @fdb.transactional
-    def get_started(tr):
-        return joshua_model._get_snap_counter(tr, ensemble_id, "started")
 
     assert get_started(joshua_model.db) == 1
 

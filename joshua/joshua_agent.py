@@ -157,7 +157,6 @@ def handle_shutdown_signal(signum, frame):
 
 
 def trim_jobqueue(cutoff_date, remove_jobs=True):
-    global job_queue
     jobs_pass = 0
     jobs_fail = 0
     cutoff_string = joshua_model.format_datetime(cutoff_date)
@@ -166,7 +165,7 @@ def trim_jobqueue(cutoff_date, remove_jobs=True):
         (result, job_date) = fdb.tuple.unpack(job_record)
         if job_date <= cutoff_string:
             if remove_jobs:
-                old_record = job_queue.get_nowait()
+                _ = job_queue.get_nowait()
         elif result == 0:
             jobs_pass += 1
         else:
@@ -427,6 +426,7 @@ def cleanup(ensemble, where, seed, retcode=0, save_on="FAILURE", work_dir=None):
     # Clear the temporary directory.
     clear_directory(os.path.join(where, "tmp"))
 
+
 class AsyncDone:
     def __init__(self):
         self._lock = threading.Lock()
@@ -460,6 +460,7 @@ class AsyncDone:
                 if self._cancelled():
                     break
                 getFileHandle().write(".")
+
 
 class AsyncEnsemble:
     def __init__(self):
@@ -550,7 +551,8 @@ class AsyncEnsemble:
             env['JOSHUA_CLUSTER_FILE'] = joshua_model.cluster_file
         # process_handling.ensure_path(env)
 
-        #    print('{} Running ensemble in dir: {}'.format(threading.current_thread().name, work_dir),file=getFileHandle())
+        # print('{} Running ensemble in dir: {}'.format(
+        #       threading.current_thread().name, work_dir),file=getFileHandle())
 
         # Check and set the Pod label when run inside a k8s pod
         # env['HOSTNAME'] contains the pod name in k8s
@@ -577,7 +579,7 @@ class AsyncEnsemble:
             # Just in case of ensembles created before joshua_model sanitize id fix
             sanitized_ensemble = joshua_model.sanitize_for_k8s_label(ensemble)
             if pod_desc.metadata.labels.get('ensemble', '') != sanitized_ensemble:
-                v1.patch_namespaced_pod(pod_name, namespace, {"metadata":{"labels":{"ensemble":sanitized_ensemble}}})
+                v1.patch_namespaced_pod(pod_name, namespace, {"metadata": {"labels": {"ensemble": sanitized_ensemble}}})
 
         # Ensure its local state exists
         where = ensemble_dir(ensemble, basepath=work_dir)
@@ -649,7 +651,9 @@ class AsyncEnsemble:
 
                     # Combine partial output from timeout exception + remaining after terminate/kill
                     output = (timeout_ex.stdout or b"") + (remaining_out or b"")
-                    log(f"Captured {len(output)} bytes on timeout (timeout_partial={len(timeout_ex.stdout or b'')}, post_terminate={len(remaining_out or b'')})")
+                    log(f"Captured {len(output)} bytes on timeout"
+                        + f" (timeout_partial={len(timeout_ex.stdout or b'')}"
+                        + f", post_terminate={len(remaining_out or b'')})")
 
                     # If we got NO output at all (hung before test started), generate fallback XML
                     if len(output) == 0 or output.strip() == b"":
@@ -742,7 +746,7 @@ class AsyncEnsemble:
             with open(to_write, "wb") as fout:
                 fout.write(output)
 
-        except OSError as e:
+        except OSError:
             # Could not write. Not fatal. Log and move on.
             log("Could not write console output.")
             log(traceback.format_exc())
@@ -892,7 +896,7 @@ def agent(
     start = time.time()  # Used later to limit time agent runs.
     idle_start = start  # Used to determine idle duration
     agent_timeout_approaching = False  # Flag to indicate graceful shutdown mode
-    
+
     if agent_timeout:
         log(f"Joshua agent started with timeout: {agent_timeout} seconds")
     else:
@@ -1046,7 +1050,8 @@ def agent(
             if agent_timeout is not None and (now - start) >= agent_timeout:
                 if not agent_timeout_approaching:
                     agent_timeout_approaching = True
-                    log(f"Agent timeout reached after {now - start:.1f} seconds - will exit gracefully after current job completes")
+                    log(f"Agent timeout reached after {now - start:.1f} seconds"
+                        + " - will exit gracefully after current job completes")
                 break
 
             # Warn when timeout is approaching (5 minutes before)
@@ -1070,7 +1075,7 @@ def agent(
                     chosen_ensemble = ensemble
                     break
             assert chosen_ensemble is not None
-            
+
             log(f"Starting job from ensemble: {chosen_ensemble}")
             retcode = run_ensemble(
                 chosen_ensemble,
@@ -1112,7 +1117,7 @@ def agent(
             #    raise JoshuaError('Zombie process (' + str(zombies) + ') present (after end)!')
     except AgentShutdown as e:
         log(f"Exiting due to shutdown signal: {e}")
-    except:
+    except Exception:
         joshua_model.log_agent_failure(traceback.format_exc())
         raise
 
@@ -1196,7 +1201,7 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
 
     if arguments.apoptosis is not None and arguments.agent_timeout is not None:
-        log(f"ERROR both --agent-timeout and --apoptosis options set")
+        log("ERROR both --agent-timeout and --apoptosis options set")
         sys.exit(1)
 
     # command-line argument overrides environment variable
@@ -1226,7 +1231,8 @@ if __name__ == "__main__":
     joshua_model.open(arguments.cluster_file, arguments.dir_path)
     agent_init(arguments.work_dir)
 
-    # Running everything (esp ctypes blocking calls) in a thread makes the program much more responsive to KeyboardInterrupt
+    # Running everything (esp ctypes blocking calls) in a thread
+    # makes the program much more responsive to KeyboardInterrupt
     t = threading.Thread(
         target=agent,
         args=(),
