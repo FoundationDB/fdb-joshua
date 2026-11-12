@@ -18,6 +18,9 @@ data:
       labels:
         app: joshua-agent
     spec:
+      # Don't retry failed agent pods; the scaler starts new Jobs as needed,
+      # and a failed Job (with its one pod) is retained for debugging (1 day).
+      backoffLimit: 0
       template:
         metadata:
           labels:
