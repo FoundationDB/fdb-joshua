@@ -1021,7 +1021,8 @@ def agent(
                 if agent_timeout is not None and (now - start) >= agent_timeout:
                     if not agent_timeout_approaching:
                         agent_timeout_approaching = True
-                        log(f"Agent timeout reached after {now - start:.1f} seconds - will exit gracefully after current job completes")
+                        log(f"Agent timeout reached after {now - start:.1f} seconds"
+                            " - will exit gracefully after current job completes")
                     break
 
                 if not ensembles_can_run:
