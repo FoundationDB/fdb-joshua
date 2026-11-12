@@ -978,6 +978,7 @@ def agent(
             assert ensembles_can_run
 
             # Warn when timeout is approaching (5 minutes before)
+            now = time.time()
             if agent_timeout is not None and not agent_timeout_approaching and (now - start) >= (agent_timeout - 300):
                 log(f"Agent timeout approaching in {agent_timeout - (now - start):.0f} seconds")
                 agent_timeout_approaching = True
