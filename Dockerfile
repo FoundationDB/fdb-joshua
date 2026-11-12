@@ -29,7 +29,7 @@ RUN ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
 # This should be moved into a dedicated step with a requirements file + version pinning.
 RUN python3 -m pip install \
         python-dateutil \
-        psutil \
+        psutil==5.9.2 \
         kubernetes==30.1.0 \
         urllib3==1.26.20 \
         boto3==1.43.14 \
@@ -48,7 +48,6 @@ RUN groupadd -r joshua -g 4060 && \
     chown -R joshua:joshua /var/joshua
 
 # Install Joshua client
-COPY childsubreaper/ /opt/joshua/install/childsubreaper
 COPY joshua/ /opt/joshua/install/joshua
 COPY setup.py /opt/joshua/install/
 RUN ARTIFACT=client python3 -m pip install /opt/joshua/install && \
@@ -57,12 +56,18 @@ RUN ARTIFACT=client python3 -m pip install /opt/joshua/install && \
 # install old fdbserver binaries and libfdb_c.so
 # just enough for foundationdb/tests/restarting/* for branches: release-7.3 release-7.4 main
 ARG OLD_FDB_BINARY_DIR=/app/deploy/global_data/oldBinaries/
+# Opt in for deployments that use 7.4.3. See the RocksDB compatibility note in README.md.
+ARG INCLUDE_7_4_3_UPGRADE=false
 # This image only works for x86_64 ...
 RUN if [ "${TARGETARCH}" = "amd64" ]; then \
+        old_versions="7.4.8 7.3.69 7.3.43 7.1.61 7.1.19 6.3.18"; \
+        if [ "${INCLUDE_7_4_3_UPGRADE}" = "true" ]; then \
+            old_versions="$old_versions 7.4.3"; \
+        fi; \
         mkdir -p ${OLD_FDB_BINARY_DIR} \
                  /usr/lib/foundationdb/plugins && \
-        for old_fdb_server_version in 7.3.69 7.3.43 7.1.61 7.1.19 6.3.18; do \
-            curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o ${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version}; \
+        for old_fdb_server_version in $old_versions; do \
+            curl -Ls --retry 5 --fail https://github.com/apple/foundationdb/releases/download/${old_fdb_server_version}/fdbserver.x86_64 -o "${OLD_FDB_BINARY_DIR}/fdbserver-${old_fdb_server_version}" || exit 1; \
         done && \
         chmod +x ${OLD_FDB_BINARY_DIR}/* ; \
     fi
@@ -115,6 +120,6 @@ ENV TRANSACTION_TIMEOUT_MS=256000
 ENV TRANSACTION_RETRY_LIMIT=1000
 
 USER joshua
-CMD python3 -m joshua.joshua_agent \
+CMD exec python3 -m joshua.joshua_agent \
         -C ${FDB_CLUSTER_FILE} \
         --work_dir /var/joshua

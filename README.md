@@ -35,17 +35,8 @@ an agent after its task ends, so it is cheaper and easier to simply have an agen
 die if it sees something it can't deal with and allow its environment to be
 reset rather than to deal with it more elegantly.
 
-By design, the current package does NOT include two dependencies that it will need
-if one wants to run the agent, namely `childsubreaper` and `subprocess32`.
-The first module is home built,
-but it is an extension module that can only be compiled on Linux and only with
-the Python development tools. The other is the Python 3 `subprocess32` module.
-As these are not required to run the client, and
-as many people may be running the rest of this module from outside of a Linux
-environment, these dependencies for the agent only are left out. If you wish to
-run the agent manually, you will have to download them separately. The preferred
-way of running agents is via the provided Docker image (as described below), so
-you don't need to manually managing packages and some required binaries.
+The preferred way of running agents is via the provided Docker image (as described below), so
+you don't need to manually manage packages and some required binaries.
 
 ## Usage
 
@@ -135,6 +126,16 @@ which uses `Dockerfile`.
 Note restarting tests need old `fdbserver` binaries and TLS libraries, which
 should be saved in `Docker/old_binary` and `Docker/old_tls_library` directories,
 respectively.
+
+The amd64 worker includes FoundationDB 7.4.8 in `oldBinaries` by default.
+Include the versions you run in production so restart tests can use those binaries.
+If you run 7.4.3, pass `--build-arg INCLUDE_7_4_3_UPGRADE=true` to `docker build`
+to add it alongside 7.4.8.
+
+For production clusters that use the RocksDB storage engine, use 7.4.8 or later
+in the 7.4 series. The RocksDB disk format is incompatible when upgrading from
+7.4.0–7.4.6 to 7.4.7 or later in that series. This restriction applies only to
+data stored with RocksDB.
 
 To start agents, run
 ```shell

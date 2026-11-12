@@ -164,20 +164,12 @@ def stop_ensemble(ensemble=None, username=None, sanity=False, printable=True, **
         # Stop all active ensembles for the given username
         if not username:
             username = get_username()
-        if printable:
-            ensemble_list = (
-                joshua_model.list_sanity_ensembles()
-                if sanity
-                else joshua_model.list_active_ensembles()
-            )
-        else:
-            ensemble_list = get_active_ensembles(False, sanity, username)
-
-        for e, props in ensemble_list:
-            if "-" + username + "-" in str(e):
-                if printable:
-                    print("Stopping ensemble", e, flush=True)
-                joshua_model.stop_ensemble(e, sanity)
+        if not username:
+            raise Exception("Unable to stop ensembles belonging to unspecified user.")
+        for e, _ in get_active_ensembles(False, sanity, username):
+            if printable:
+                print("Stopping ensemble", e, flush=True)
+            joshua_model.stop_ensemble(e, sanity)
 
 
 def default_ensemble(sanity=False, **args):
@@ -262,7 +254,6 @@ def tail_ensemble(
                 for elem in doc.xpath('//*[(@Severity="30")]'):
                     elem.getparent().remove(elem)
                 output = le.tostring(doc).decode("utf-8")[7:-8]
-                parsed = True
             except Exception as e:
                 print(
                     "Could not parse xml output ({}) {} on {} because {}".format(
@@ -375,7 +366,7 @@ def delete_ensemble_range(
                 time_after is None or timestamp > time_after
             ):
                 to_delete.append(ensemble)
-        except Exception as e:
+        except Exception:
             print("Could not parse datetime from ensemble:", ensemble, "Skipping.")
 
     if len(to_delete) == 0:
@@ -617,7 +608,8 @@ if __name__ == "__main__":
     parser_failures.add_argument(
         "--start",
         default=None,
-        help="start date time (in most standard date formats) for failures to report, the default of which is one week ago",
+        help="start date time (in most standard date formats) for failures to report,"
+             " the default of which is one week ago",
     )
     parser_failures.add_argument(
         "--end",
@@ -695,7 +687,8 @@ if __name__ == "__main__":
         "-o",
         "--out",
         default=None,
-        help="file or directory to write ensemble tar.gz file to (default is current working directory with ensemble name)",
+        help="file or directory to write ensemble tar.gz file to"
+             " (default is current working directory with ensemble name)",
     )
     parser_download.add_argument(
         "-f",

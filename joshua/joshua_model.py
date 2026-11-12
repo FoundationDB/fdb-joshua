@@ -35,7 +35,7 @@ import zlib
 import boto3
 from collections import defaultdict
 from io import BytesIO
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import fdb
@@ -96,7 +96,8 @@ def open(c_file=None, dir_path=("joshua",)):
     global cluster_file, db, dir_top, dir_ensembles, dir_active, dir_sanity, dir_all_ensembles, dir_ensemble_data
     global dir_ensemble_results, dir_ensemble_results_pass, dir_ensemble_results_fail, dir_ensemble_incomplete
     global dir_ensemble_claims
-    global dir_ensemble_results_large, dir_ensemble_results_application, dir_active_changes, dir_sanity_changes, dir_failures
+    global dir_ensemble_results_large, dir_ensemble_results_application
+    global dir_active_changes, dir_sanity_changes, dir_failures
 
     cluster_file = c_file
     db = fdb.open(cluster_file)
@@ -394,7 +395,7 @@ def get_ensemble_priorities(tr, ensembles=None):
 @fdb.transactional
 def _insert_blobpart(tr, subspace, offset, data):
     for rel_offs in range(0, min(BLOB_TRANSACTION_LIMIT, len(data)), BLOB_KEY_LIMIT):
-        tr[subspace[offset + rel_offs]] = data[rel_offs : rel_offs + BLOB_KEY_LIMIT]
+        tr[subspace[offset+rel_offs]] = data[rel_offs: rel_offs+BLOB_KEY_LIMIT]
 
 
 def _insert_blob(db, subspace, file, offset=0, verbose=False):
@@ -416,7 +417,7 @@ def _insert_blob(db, subspace, file, offset=0, verbose=False):
 @fdb.transactional
 def _read_blobpart(tr, subspace, offset):
     data = []
-    for k, v in tr[subspace[offset] : subspace[offset + BLOB_TRANSACTION_LIMIT]]:
+    for k, v in tr[subspace[offset]: subspace[offset+BLOB_TRANSACTION_LIMIT]]:
         # print( len(data), offset, len(v), repr(k), repr(subspace[offset].key()) )
         assert subspace[offset].key() == k
         data.append(v)
@@ -530,7 +531,8 @@ def _get_remote_tarball_hash(tarball, properties):
     raise ValueError("Unsupported remote tarball URL: " + tarball)
 
 
-def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+def prepare_ensemble(userid, properties, tarball, use_remote=False):
+    """Upload ensemble data and populate properties without activating the ensemble."""
     # Validate and normalize before fetching or uploading the tarball. A bad
     # claim_shard_count should not leave unreferenced ensemble data behind.
     _normalize_claim_shard_properties(properties)
@@ -549,6 +551,11 @@ def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False)
         properties["submitted"] = timestamp
     if not use_remote:
         _insert_blob(db, dir_ensemble_data[ensemble_id], tarball, 0, True)
+    return ensemble_id
+
+
+def create_ensemble(userid, properties, tarball, sanity=False, use_remote=False):
+    ensemble_id = prepare_ensemble(userid, properties, tarball, use_remote)
     _create_ensemble(db, ensemble_id, properties, sanity)
     logger.debug(
         "created ensemble {}, properties: {}, sanity: {}".format(
@@ -562,9 +569,8 @@ def stop_user_ensembles(username, sanity=False):
     if not username:
         raise Exception("Unable to stop ensembles belonging to unspecified user.")
     ensemble_list = get_active_ensembles(False, sanity, username)
-    for e, props in ensemble_list:
-        if "-" + username + "-" in str(e):
-            stop_ensemble(e, sanity)
+    for e, _ in ensemble_list:
+        stop_ensemble(e, sanity)
 
 
 def get_active_ensembles(
@@ -624,16 +630,10 @@ def _stop_ensemble(tr, ensemble_id, sanity=False):
     if tr[dir[ensemble_id]] is not None:
         # Get the current time
         stoptime = datetime.datetime.now(datetime.timezone.utc)
-        # Get the ensemble properties
-        properties = get_ensemble_properties(ensemble_id)
-        # Get the ensemble submission time, if not defined use now
+        submitted_value = tr[dir_all_ensembles[ensemble_id]["properties"]["submitted"]]
         submitted = (
-            load_datetime(
-                fdb.tuple.unpack(
-                    tr[dir_all_ensembles[ensemble_id]["properties"]["submitted"]]
-                )[0]
-            )
-            if "submitted" in properties
+            load_datetime(fdb.tuple.unpack(submitted_value)[0])
+            if submitted_value.present()
             else stoptime
         )
 
@@ -837,7 +837,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
     failed = props.get("fail", 0)
     completed = passed + failed
     max_runs = props.get("max_runs", 0)
-    
+
     # max_runs == 0 means run forever
     if max_runs > 0 and completed >= max_runs:
         # Ensemble has reached its completion target, no more work needed
@@ -849,7 +849,7 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
         dead_seed = None
         saw_heartbeat = False
         for seed, heartbeat in _get_seeds_and_heartbeats(ensemble_id, tr):
-            assert type(seed) == int
+            assert type(seed) is int
             saw_heartbeat = True
             if current_time - heartbeat > 10:
                 # Reclaiming any expired run frees one slot. Do not scan every
@@ -866,29 +866,43 @@ def should_run_ensemble(tr: fdb.Transaction, ensemble_id: str) -> bool:
                 )
             )
 
-            _decrement(tr, ensemble_id, "started")
-            claim_shard = tr[
-                dir_ensemble_incomplete[ensemble_id][dead_seed][
-                    CLAIM_SHARD_PROPERTY
-                ]
-            ]
-            if claim_shard != None:
-                _decrement_claim_shard(
-                    tr, ensemble_id, fdb.tuple.unpack(claim_shard)[0]
-                )
             # If we read at snapshot isolation then an arbitrary number of agents could steal this run/seed.
             # We only want one agent to succeed in taking over for the dead agent's run/seed.
             tr.add_read_conflict_key(
                 dir_ensemble_incomplete[ensemble_id]["heartbeat"][dead_seed]
             )
-            del tr[dir_ensemble_incomplete[ensemble_id][dead_seed]]
-            del tr[dir_ensemble_incomplete[ensemble_id][dead_seed].range()]
-            del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][dead_seed]]
+            _release_run(tr, ensemble_id, dead_seed)
             return True
         return False
     else:
         # max_runs == 0 or started < max_runs and completed < max_runs
         return True
+
+
+def _release_run(tr: fdb.Transaction, ensemble_id: str, seed: int) -> None:
+    """Undo try_starting_test() for this seed, so that another run can be started in its place."""
+    _decrement(tr, ensemble_id, "started")
+    claim_shard = tr[dir_ensemble_incomplete[ensemble_id][seed][CLAIM_SHARD_PROPERTY]]
+    if claim_shard != None:
+        _decrement_claim_shard(tr, ensemble_id, fdb.tuple.unpack(claim_shard)[0])
+    del tr[dir_ensemble_incomplete[ensemble_id][seed]]
+    del tr[dir_ensemble_incomplete[ensemble_id][seed].range()]
+    del tr[dir_ensemble_incomplete[ensemble_id]["heartbeat"][seed]]
+
+
+@transactional
+def release_test(tr, ensemble_id, seed) -> bool:
+    """
+    Give up a run started by this agent (e.g. because the agent is shutting
+    down) without recording a result, returning it to the pool of runs to be
+    started, and count it as interrupted. Returns False if the run was not ours
+    to release (results were already inserted, or another agent took it over).
+    """
+    if tr[dir_ensemble_incomplete[ensemble_id][seed]] != instanceid:
+        return False
+    _release_run(tr, ensemble_id, seed)
+    _increment(tr, ensemble_id, "interrupted")
+    return True
 
 
 @transactional
@@ -1095,9 +1109,8 @@ def insert_results(
 
 def _read_results(tr, results_dir, ensemble_id, begin_versionstamp):
     for k, v in tr[
-        results_dir[ensemble_id][begin_versionstamp] : results_dir[ensemble_id]
-        .range()
-        .stop
+        results_dir[ensemble_id][begin_versionstamp]:
+        results_dir[ensemble_id].range().stop
     ]:
         yield results_dir[ensemble_id].unpack(k) + (v,)
 
