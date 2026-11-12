@@ -52,7 +52,8 @@ while true; do
     # Let the Kubernetes TTL controller own finished-job retention and cleanup
     # when enabled, instead of scanning every job in the namespace here.
     if [ "$use_k8s_ttl_controller" == false ] ; then
-        # Pod failures can be retried, and parallel Jobs may still have running pods.
+        # Use terminal Job conditions because a finished pod can belong to a still-running Job
+        # Retain failed Jobs until one day after creation for debugging
         if jobs_to_delete=$(
             set -o pipefail
             kubectl get jobs -n "${namespace}" -o json | \
